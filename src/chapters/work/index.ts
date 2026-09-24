@@ -5,7 +5,7 @@ import { SECTIONS, WORK, workImage, type WorkItem } from '../../content'
 import { clamp, ease, lerp, segment, smoothstep } from '../../core/math'
 import { Callout, el, rise, setRise } from '../../core/dom'
 import { CRATE, LABEL_R, RECORD_R, crateGeometry, recordGeometry, shadowQuad, sleeveGeometry } from './geometry'
-import { BONE, IMG, drawBack, drawFront, drawInner, drawLabel, drawPlate, loadFonts, type SleeveSpec } from './art'
+import { IMG, drawBack, drawFront, drawInner, drawLabel, drawPlate, loadFonts, type SleeveSpec } from './art'
 import {
   RECORD_LIGHTS,
   crateMaterial,
@@ -34,11 +34,17 @@ import {
  *              rise; then the record slides home, the sleeve drops back and
  *              flips forward on its bottom edge onto the stack (it falls,
  *              bounces, the stack beneath recoils)
- *   0.856–0.958 "Nine more, all live.": a fast riffle, the nine sleeves tip
- *              forward one after another as their names light up in the list
- *   0.912–1.00 out-beat: the house pressing rises, its record slides up out of
- *              the inner sleeve and spins up to a blur as the camera pushes into
- *              the label (the ripple cut emanates from the spindle)
+ *   0.848–0.93 "Nine more, all live.": a fast riffle. Each name lights while
+ *              its sleeve stands face-out at the front of the bin, then the
+ *              sleeve tips forward and the next name lights
+ *   0.92–1.00  out-beat, into LINER NOTES (graphite): the white-sleeved house
+ *              pressing rises, its black-label record slides up out of the inner
+ *              sleeve and spins up to a blur while the camera pushes onto the
+ *              grooves and label and the room drops to graphite, so the ripple
+ *              (centred on the spindle) lands on a dark frame
+ *
+ * Side A of the story is tracks 01–04 (this is 02), so every print here says
+ * SIDE A. Keyboard focus on a project lands on its sleeve (Chapter.anchors).
  *
  * Scroll decides where every sleeve SHOULD be; the flips themselves are
  * real-time physics (gravity, bounce, stack recoil) that always settle, so any
@@ -70,15 +76,27 @@ const PH = {
   camOut: 0.8,
 }
 const INTRO_OFF = 0.088
-const MORE = [0.856, 0.958] as const
-const RIFFLE = [0.866, 0.912] as const
+const MORE = [0.848, 0.93] as const
+/** the nine: name j is up front (its sleeve standing, face out) from R0 + j·RSTEP until it goes over */
+const R0 = 0.852
+const RSTEP = 0.0072
+const flipAt = (j: number) => R0 + (j + 1) * RSTEP
+/** the camera is over the riffle by here */
+const RIFFLE_CAM = 0.852
 const FIN = {
-  rise: [0.912, 0.952] as const,
-  out: [0.936, 0.968] as const,
-  spin: [0.945, 1] as const,
-  cam: [0.905, 0.952] as const,
-  push: [0.946, 0.996] as const,
+  cam: [0.918, 0.948] as const,
+  rise: [0.92, 0.954] as const,
+  out: [0.932, 0.962] as const,
+  /** the empty inner sleeve falls away beneath the record */
+  drop: [0.956, 0.978] as const,
+  spin: [0.94, 1] as const,
+  push: [0.948, 0.978] as const,
+  /** the room goes to graphite for Liner Notes, ahead of the ripple */
+  dark: [0.934, 0.976] as const,
 }
+/** how far the house record slides up out of its inner sleeve (fully clear) */
+const HOUSE_SLIDE = 1.0
+const HOUSE_LABEL = '#1b1b1e'
 
 // ---- crate layout
 const Y0 = CRATE.y0
@@ -89,7 +107,7 @@ const thStack = (i: number) => Math.atan(Math.tan(TH0) + i * 0.045)
 
 // ---- presentation
 const PRESENT = new THREE.Vector3(0, 1.88, 0.78)
-const HOUSE_AT = new THREE.Vector3(0, 1.62, 0.1)
+const HOUSE_AT = new THREE.Vector3(0, 2.0, 0.1)
 const SLIDE = 0.56
 const YAW = [9, -6, 8, -8, 6, -4]
 const PITCH = 16
@@ -206,9 +224,26 @@ type Job = () => void
 class Work implements Chapter {
   id = 'work'
   group = new THREE.Group()
+  /**
+   * Where each project in WORK order is fully shown: a featured sleeve out of
+   * the crate with its record spinning and credits up, or one of the nine
+   * standing face-out mid-riffle with its name lit.
+   */
+  anchors = WORK.map(w => {
+    const k = FEATURED.indexOf(w)
+    if (k >= 0) return F0 + FW * (k + 0.45)
+    const j = REST.indexOf(w)
+    return j >= 0 ? R0 + (j + 0.5) * RSTEP : MORE[0] + 0.01
+  })
 
   private ctx!: ChapterContext
   private compact = false
+  /** presentation point per featured sleeve (slid sideways / lowered per layout to keep the crate clear of the chrome) */
+  private presentAt = FEATURED.map(() => PRESENT.clone())
+  private present = PRESENT.clone()
+  private soft!: THREE.PointLight
+  private box = { l: 0, r: 0, t: 0, b: 0, sl: 0, sr: 0 }
+  private boxPts = new Float32Array(24)
 
   // scene
   private sleeves: THREE.Mesh[] = []
@@ -266,7 +301,6 @@ class Work implements Chapter {
     intro: pose(),
     introFar: pose(),
     proj: [] as Pose[],
-    crate: pose(),
     riffle: pose(),
     fin: pose(),
     push: pose(),
@@ -301,10 +335,12 @@ class Work implements Chapter {
   private v = new THREE.Vector3()
   private v2 = new THREE.Vector3()
   private v3 = new THREE.Vector3()
+  private pv = new THREE.Vector3()
   private D = new THREE.Vector3()
   private e = new THREE.Euler()
   private one = new THREE.Vector3(1, 1, 1)
   private presented = { k: -1, center: new THREE.Vector3(), q: new THREE.Quaternion(), slide: 0 }
+  /** the house pressing's raised pose (the record rides on this) */
   private houseState = { center: new THREE.Vector3(), q: new THREE.Quaternion(), slide: 0, recCenter: new THREE.Vector3() }
   private recCenter = new THREE.Vector3()
 
@@ -320,9 +356,9 @@ class Work implements Chapter {
     key.position.set(-2.4, 3.6, 2.8)
     this.group.add(key)
     // a near softbox up-left of the presentation point: real falloff across a held sleeve
-    const soft = new THREE.PointLight(0xfff6ea, 3.2, 0, 2)
-    soft.position.copy(PRESENT).add(new THREE.Vector3(-1.6, 1.2, 1.7))
-    this.group.add(soft)
+    this.soft = new THREE.PointLight(0xfff6ea, 3.2, 0, 2)
+    this.soft.position.copy(PRESENT).add(new THREE.Vector3(-1.6, 1.2, 1.7))
+    this.group.add(this.soft)
 
     // crate
     const crate = new THREE.Mesh(crateGeometry(), crateMaterial())
@@ -463,7 +499,7 @@ class Work implements Chapter {
       return t
     }
     for (let k = 0; k < NF; k++) this.labels.push(mkLabel(this.labelPaper(k)))
-    this.houseLabel = mkLabel(BONE)
+    this.houseLabel = mkLabel(HOUSE_LABEL)
 
     // records
     const rgeo = recordGeometry(mobile ? 96 : 160)
@@ -622,9 +658,9 @@ class Work implements Chapter {
         name: 'Hark Digital Design',
         line2: 'Make the internet listen.',
         cat: 'HRK–000 · HOUSE PRESSING',
-        side: 'SIDE B',
-        ink: false,
-        paper: BONE,
+        side: 'SIDE A',
+        ink: true,
+        paper: HOUSE_LABEL,
         big: true,
       })
       this.houseLabel.needsUpdate = true
@@ -644,7 +680,7 @@ class Work implements Chapter {
           tags: ['Web Design', 'SEO', 'Software'],
           featured: false,
         },
-        cat: 'HRK · SIDE B',
+        cat: `${catOf(NF)}/${pad(NF + NR, 3)}`,
         src: 'hark.digital',
         ink: false,
         paper: '#ebe7df',
@@ -785,21 +821,35 @@ class Work implements Chapter {
     const safeB = H - Math.max(...this.cards.map(c => rel(c.root.getBoundingClientRect()).b))
     const fov = this.compact ? 30 : 25
 
+    // the bottom chrome (audio switch left, tape deck right): the crate stays out from under it
+    const deckEl = document.querySelector<HTMLElement>('.ch-deck')
+    const audioEl = document.querySelector<HTMLElement>('.ch-audio')
+    const deck = deckEl && deckEl.offsetWidth ? rel(deckEl.getBoundingClientRect()) : null
+    const audio = audioEl && audioEl.offsetWidth ? rel(audioEl.getBoundingClientRect()) : null
+    const band = Math.max(this.compact ? 52 : 60, H - Math.min(deck?.t ?? H, audio?.t ?? H) + 12)
+    const deckL = (deck ? deck.l : W - gutter - Math.min(400, Math.max(320, W * 0.28))) - 18
+
     let regProj: Region
     let regIntro: Region
     let regRiffle: Region
     let regFin: Region
     if (this.compact) {
       regProj = { x0: gutter, x1: W - gutter, y0: head.b + 10, y1: cardTop - 12 }
-      regIntro = { x0: gutter, x1: W - gutter, y0: intro.b + 6, y1: H - safeB }
+      regIntro = { x0: gutter, x1: W - gutter, y0: intro.b + 6, y1: Math.min(H - safeB, H - band - 8) }
       regRiffle = { x0: gutter, x1: W - gutter, y0: head.b + 6, y1: more.t - 8 }
       regFin = { x0: gutter, x1: W - gutter, y0: head.b + 10, y1: H - safeB }
     } else {
       const x0 = Math.max(cardRight, more.r) + Math.max(28, W * 0.03)
       regProj = { x0, x1: W - gutter, y0: head.b + 16, y1: H - safeB }
-      regIntro = { x0: Math.max(intro.r - W * 0.06, W * 0.4), x1: W - gutter * 0.5, y0: head.b, y1: H - safeB * 0.6 }
-      regRiffle = { x0, x1: W - gutter, y0: head.b + 10, y1: H - safeB }
-      regFin = { x0, x1: W - gutter, y0: head.b + 10, y1: H - safeB }
+      regIntro = {
+        x0: Math.max(intro.r - W * 0.06, W * 0.4),
+        x1: W - gutter * 0.5,
+        y0: head.b,
+        y1: Math.min(H - safeB * 0.6, H - band - 10),
+      }
+      regRiffle = { x0, x1: W - gutter, y0: head.b + 10, y1: Math.min(H - safeB, H - band - 8) }
+      // the cards are gone by the finale: the house pressing takes the centre
+      regFin = { x0: gutter * 2, x1: W - gutter * 2, y0: head.b + 10, y1: H - safeB }
     }
 
     const S = this.stations
@@ -809,27 +859,164 @@ class Work implements Chapter {
     S.introFar.pos.copy(S.intro.pos).addScaledVector(this.D, -1.3).add(this.v.set(0, 0.55, 0))
     S.introFar.tgt.copy(S.intro.tgt).add(this.v.set(0, 0.12, 0))
     S.introFar.fov = fov
+
     // presentations: the sleeve + the record out to its right
-    S.proj = FEATURED.map((_, k) => {
-      const p = pose()
+    const frameOne = (k: number) => {
+      const p = S.proj[k] ?? pose()
       dirOf(YAW[k], PITCH, this.D)
       _r.crossVectors(this.D, UP).normalize()
-      const C = this.v.copy(PRESENT).addScaledVector(_r, (SLIDE + RECORD_R - 0.5) / 2)
+      const C = this.v.copy(this.presentAt[k]).addScaledVector(_r, (SLIDE + RECORD_R - 0.5) / 2)
       frameTo(p, C, this.D, 0.5 + SLIDE + RECORD_R + (this.compact ? 0.16 : 0.05), 1.06, regProj, W, H, fov)
-      return p
-    })
-    // down into the crate (between records)
-    dirOf(0, 38, this.D)
-    frameTo(S.crate, this.v.set(0, 0.62, 0.15), this.D, 1.6, 1.4, regProj, W, H, fov)
+      S.proj[k] = p
+    }
+    for (let k = 0; k < NF; k++) {
+      this.presentAt[k].copy(PRESENT)
+      frameOne(k)
+    }
+    // Keep the crate below each presentation out from under the bottom chrome
+    // (before and after the hold's dolly). Where it would reach the tape deck
+    // on a landscape screen (4:3), the sleeve is held higher so the crate drops
+    // right out of the bottom of the frame (the nod between records still
+    // looks down into it); phones and portrait tablets hold the sleeve a little
+    // lower instead, so the whole crate stays above the band.
+    const crateC = this.v2.set(0, 0.4, 0)
+    const bandTop = H - band
+    const audioR = (audio ? audio.r : gutter + 170) + 16
+    const gapR = deckL + 8
+    /** how far (px) the crate under presentation k reaches into the chrome, before and after the dolly */
+    const intrusion = (k: number) => {
+      let over = 0
+      for (const creep of [0, 1]) {
+        const bx = this.crateBox(this.projPose(k, creep, this.tmpA), W, H, bandTop)
+        if (bx.sl > bx.sr) continue
+        if (this.compact) over = Math.max(over, Math.min(bx.b, H) - bandTop)
+        else over = Math.max(over, bx.sr - gapR, audioR - bx.sl)
+      }
+      return over
+    }
+    /** the crate's top edge on screen (px), before and after the dolly */
+    const crateTop = (k: number) =>
+      Math.min(this.crateBox(this.projPose(k, 0, this.tmpA), W, H).t, this.crateBox(this.projPose(k, 1, this.tmpA), W, H).t)
+    for (let k = 0; k < NF; k++) {
+      const P = this.presentAt[k]
+      if (this.compact) {
+        for (let it = 0; it < 8; it++) {
+          const over = intrusion(k)
+          if (over <= 0.5) break
+          const ppw = this.pxPerWorld(S.proj[k], crateC, H)
+          const y = Math.max(PRESENT.y - 0.42, P.y - (over / ppw) * 1.08)
+          if (y === P.y) break
+          P.y = y
+          frameOne(k)
+        }
+      } else if (intrusion(k) > 0.5) {
+        // hold it high enough that the crate drops clean out of the frame (no slivers)
+        for (let it = 0; it < 24 && crateTop(k) < H + 2; it++) {
+          const y = Math.min(PRESENT.y + 1.6, P.y + 0.08)
+          if (y === P.y) break
+          P.y = y
+          frameOne(k)
+        }
+      }
+    }
+    this.present.set(0, 0, 0)
+    for (const P of this.presentAt) this.present.addScaledVector(P, 1 / NF)
+    this.soft.position.copy(this.present).add(this.v.set(-1.6, 1.2, 1.7))
+
     // the riffle: steep, over the stack
     dirOf(-12, 44, this.D)
     frameTo(S.riffle, this.v.set(0, 0.46, 0.22), this.D, 1.95, 2.15, regRiffle, W, H, fov)
-    // the house pressing, record up out of its sleeve
+    // the house pressing up out of the crate, its record sliding up out of the inner sleeve
+    // (framed on the sleeve with its record half out; the push then follows the record up)
     dirOf(0, 10, this.D)
-    frameTo(S.fin, this.v.copy(HOUSE_AT).add(this.v2.set(0, SLIDE * 0.5, 0)), this.D, 1.25, 1.2 + SLIDE, regFin, W, H, fov)
-    // push: the label fills the frame, spindle dead centre (the ripple rises from it)
-    const recC = this.v.copy(HOUSE_AT).add(this.v2.set(0, SLIDE, 0))
-    frameTo(S.push, recC, this.D, LABEL_R * 2.2, LABEL_R * 2.2, { x0: 0, x1: W, y0: 0, y1: H }, W, H, fov)
+    frameTo(S.fin, this.v.copy(HOUSE_AT).add(this.v2.set(0, 0.2, 0)), this.D, 1.25, 1.4, regFin, W, H, fov)
+    // ...with the crate dropped out of the bottom of the frame (never under the chrome)
+    _r.crossVectors(this.D, UP).normalize()
+    _u.crossVectors(_r, this.D).normalize()
+    for (let it = 0; it < 4; it++) {
+      const b = this.crateBox(S.fin, W, H)
+      if (b.t >= H + 2 || b.b <= H - band) break
+      const dy = (H + 6 - b.t) / this.pxPerWorld(S.fin, crateC.set(0, 0.6, -0.3), H)
+      S.fin.pos.addScaledVector(_u, dy)
+      S.fin.tgt.addScaledVector(_u, dy)
+    }
+    // push: onto the grooves and the black label, spindle dead centre (the ripple rises from it),
+    // a touch off-axis so the groove highlights sweep across the frame
+    dirOf(-7, 7, this.D)
+    const recC = this.v.copy(HOUSE_AT).add(this.v2.set(0, HOUSE_SLIDE, 0))
+    frameTo(S.push, recC, this.D, LABEL_R * 4.4, LABEL_R * 4.4, { x0: 0, x1: W, y0: 0, y1: H }, W, H, fov)
+  }
+
+  /**
+   * Screen-space bounds (px) of the crate (bin + the sleeves standing in it)
+   * under a pose, plus its horizontal extent (sl..sr, on screen) inside the
+   * bottom band of rows from `bandTop` down (sl > sr when it doesn't reach it).
+   */
+  private crateBox(p: Pose, W: number, H: number, bandTop = H) {
+    const cam = this.projCam
+    cam.fov = p.fov
+    cam.aspect = W / H
+    cam.position.copy(p.pos)
+    cam.lookAt(p.tgt)
+    cam.updateProjectionMatrix()
+    cam.updateMatrixWorld()
+    const b = this.box
+    b.l = b.t = b.sl = Infinity
+    b.r = b.b = b.sr = -Infinity
+    const X = CRATE.inner + CRATE.wall
+    const P = this.boxPts
+    // the eight corners of the bin, then the tops of the sleeves standing in it
+    for (let c = 0; c < 12; c++) {
+      const back = c & 2
+      if (c < 8) {
+        const z = back ? CRATE.zBack - CRATE.wall : CRATE.zFront + CRATE.wall
+        const y = c & 4 ? (back ? CRATE.backH : CRATE.frontH) : 0
+        this.v3.set(c & 1 ? X : -X, y, z)
+      } else this.v3.set(c & 1 ? 0.5 : -0.5, Y0 + 1, back ? zUp(HOUSE) : zUp(0))
+      this.v3.project(cam)
+      const sx = ((this.v3.x + 1) / 2) * W
+      const sy = ((1 - this.v3.y) / 2) * H
+      P[c * 2] = sx
+      P[c * 2 + 1] = sy
+      b.l = Math.min(b.l, sx)
+      b.r = Math.max(b.r, sx)
+      b.t = Math.min(b.t, sy)
+      b.b = Math.max(b.b, sy)
+    }
+    // the hull's extent inside the band = the extent of every point-to-point
+    // segment clipped to the band's rows (and to the screen)
+    const y0 = bandTop
+    const y1 = H
+    for (let i = 0; i < 12; i++) {
+      for (let j = i; j < 12; j++) {
+        const ax = P[i * 2]
+        const ay = P[i * 2 + 1]
+        const bx = P[j * 2]
+        const by = P[j * 2 + 1]
+        const lo = Math.max(y0, Math.min(ay, by))
+        const hi = Math.min(y1, Math.max(ay, by))
+        if (lo > hi) continue
+        const dy = by - ay
+        for (const y of [lo, hi]) {
+          const x = Math.abs(dy) < 1e-6 ? ax : ax + ((bx - ax) * (y - ay)) / dy
+          const xs = clamp(x, 0, W)
+          b.sl = Math.min(b.sl, xs)
+          b.sr = Math.max(b.sr, xs)
+        }
+        if (Math.abs(dy) < 1e-6) {
+          b.sl = Math.min(b.sl, clamp(bx, 0, W))
+          b.sr = Math.max(b.sr, clamp(bx, 0, W))
+        }
+      }
+    }
+    return b
+  }
+
+  /** Screen pixels per world unit at point `at` under a pose. */
+  private pxPerWorld(p: Pose, at: THREE.Vector3, H: number) {
+    this.v3.subVectors(p.tgt, p.pos).normalize()
+    const d = Math.max(0.05, this.pv.subVectors(at, p.pos).dot(this.v3))
+    return H / 2 / Math.tan((p.fov * DEG) / 2) / d
   }
 
   // ------------------------------------------------------------------ per frame
@@ -846,11 +1033,13 @@ class Work implements Chapter {
       this.ledFlash = 1
     }
 
-    ctx.studio.params.tone = 0
-    ctx.studio.params.warmth = 0.42
-    ctx.studio.params.spot = 0.55
-    ctx.studio.params.envIntensity = 1.05
-    ctx.post.params.vignette = 0.26
+    // bone cyc for the crate; the out-beat drops the room to graphite for Liner Notes
+    const dark = ease.inOutQuad(segment(l, FIN.dark[0], FIN.dark[1]))
+    ctx.studio.params.tone = dark
+    ctx.studio.params.warmth = 0.42 * (1 - dark)
+    ctx.studio.params.spot = lerp(0.55, 0.6, dark)
+    ctx.studio.params.envIntensity = lerp(1.05, 0.42, dark)
+    ctx.post.params.vignette = lerp(0.26, 0.34, dark)
     ctx.post.params.bloomStrength = 0.5
     ctx.post.params.bloomRadius = 0.4
 
@@ -873,7 +1062,7 @@ class Work implements Chapter {
     // -- featured sleeves
     for (let i = 0; i < NF; i++) {
       const mesh = this.sleeves[i]
-      if (i === k && lift > 0.0005) this.presentMatrix(i, lift, YAW[i], PITCH, PRESENT, mesh.matrix, this.presented)
+      if (i === k && lift > 0.0005) this.presentMatrix(i, lift, YAW[i], PITCH, this.presentAt[i], mesh.matrix, this.presented)
       else this.crateMatrix(i, mesh.matrix)
       mesh.matrixWorldNeedsUpdate = true
       // screenshot fade-in
@@ -888,9 +1077,18 @@ class Work implements Chapter {
     this.restMesh.instanceMatrix.needsUpdate = true
 
     // -- house pressing
-    const hLift = outBack(segment(l, FIN.rise[0], FIN.rise[1]), 0.8)
-    if (hLift > 0.0005) this.presentMatrix(HOUSE, hLift, 0, 10, HOUSE_AT, this.house.matrix, this.houseState)
-    else {
+    // lifted from rest (the camera rides along with it), a small overshoot as it tops out
+    const hu = segment(l, FIN.rise[0], FIN.rise[1])
+    const hLift = ease.inOutCubic(hu) + 0.04 * Math.sin(Math.PI * clamp((hu - 0.5) / 0.5))
+    const drop = ease.inQuad(segment(l, FIN.drop[0], FIN.drop[1]))
+    if (hLift > 0.0005) {
+      this.presentMatrix(HOUSE, hLift, 0, 10, HOUSE_AT, this.house.matrix, this.houseState)
+      // once the record is clear, the empty sleeve drops away beneath it (straight down, like it was let go)
+      if (drop > 0) {
+        this.house.matrix.elements[13] -= drop * 2.4
+        this.house.matrix.elements[14] -= drop * 0.3
+      }
+    } else {
       this.crateMatrix(HOUSE, this.house.matrix)
       this.houseState.center.setFromMatrixPosition(this.house.matrix)
       this.houseState.center.add(this.v.set(0, 0.5, 0).applyQuaternion(this.q.setFromRotationMatrix(this.house.matrix)))
@@ -928,7 +1126,7 @@ class Work implements Chapter {
       const hs = ease.inOutCubic(segment(l, FIN.out[0], FIN.out[1]))
       const H = this.houseState
       this.houseRec.visible = l > 0.8
-      H.recCenter.copy(H.center).add(this.v.set(0, SLIDE * 1.02 * hs, 0).applyQuaternion(H.q))
+      H.recCenter.copy(H.center).add(this.v.set(0, HOUSE_SLIDE * hs, 0).applyQuaternion(H.q))
       this.houseRec.position.copy(H.recCenter)
       const spinUp = ease.inCubic(segment(l, FIN.spin[0], FIN.spin[1]))
       const omega = (ctx.reducedMotion ? 0.4 : 1) * (hs * RPM33 * 1.2 + spinUp * 46)
@@ -936,7 +1134,9 @@ class Work implements Chapter {
       this.qSpin.setFromAxisAngle(this.v.set(0, 0, 1), this.houseSpin)
       this.houseRec.quaternion.copy(H.q).multiply(this.qSpin)
       this.houseRecU.uBlur.value = ctx.reducedMotion ? 0 : Math.min(2.6, omega * 0.045)
-      this.houseRecU.uSpec.value = 1 + spinUp * 0.6
+      // at speed the grooves keep only their sharp glints: the frame goes dark for Liner Notes
+      this.houseRecU.uSpec.value = (1 + spinUp * 0.35) * (1 - 0.3 * dark)
+      this.houseRecU.uSheen.value = 1 - 0.7 * dark
       this.lightUniforms(this.houseRecU)
       // a rising tone as it spins up (only heard if the visitor turned audio on)
       const want = spinUp > 0.01 && l < 0.999
@@ -968,7 +1168,7 @@ class Work implements Chapter {
     const n = NS
     const tgt = this.tgt
     for (let i = 0; i < NF; i++) tgt[i] = l > slotStart(i) + FW * PH.flip ? 1 : 0
-    for (let j = 0; j < NR; j++) tgt[NF + j] = l > RIFFLE[0] + (j / (NR - 1)) * (RIFFLE[1] - RIFFLE[0]) ? 1 : 0
+    for (let j = 0; j < NR; j++) tgt[NF + j] = l > flipAt(j) ? 1 : 0
     tgt[HOUSE] = 0
     if (k >= 0 && lift > 0.01) tgt[k] = 0
     // physical order: a sleeve can't fall until the one in front is out of the way,
@@ -1097,6 +1297,16 @@ class Work implements Chapter {
 
   // ------------------------------------------------------------------ camera
 
+  /** The level view on the house pressing, riding along with it while it rises. */
+  private finPose(out: Pose) {
+    const S = this.stations
+    this.v.copy(this.houseState.center).sub(HOUSE_AT).multiplyScalar(0.85)
+    out.pos.copy(S.fin.pos).add(this.v)
+    out.tgt.copy(S.fin.tgt).add(this.v)
+    out.fov = S.fin.fov
+    return out
+  }
+
   /** Presentation pose k, dollied in by `creep` (0..1 of the hold). */
   private projPose(k: number, creep: number, out: Pose) {
     const P = this.stations.proj[k]
@@ -1146,32 +1356,38 @@ class Work implements Chapter {
         const nod = Math.sin(clamp(t / 0.6) * Math.PI)
         this.v.subVectors(A.tgt, A.pos).normalize()
         A.pos.addScaledVector(this.v, -0.3 * nod)
+        // (deeper where the layout holds the sleeves higher above the crate, once the sleeve is down)
+        const high = Math.max(0, lerp(this.presentAt[from].y, this.presentAt[from + 1].y, t) - PRESENT.y) * smoothstep(0.08, 0.3, t)
         A.pos.y += 0.55 * nod
-        A.tgt.y -= 1.05 * nod
+        A.tgt.y -= (1.05 + high) * nod
         A.tgt.z += 0.2 * nod
         res = A
       }
     } else if (l < FIN.cam[0]) {
-      const t = ease.inOutCubic(segment(l, leave5, 0.872))
+      const t = ease.inOutCubic(segment(l, leave5, RIFFLE_CAM))
       blend(this.projPose(NF - 1, segment(l, slotStart(NF - 1) + FW * PH.camIn, leave5), B), S.riffle, t, A)
       // follow the riffle back through the crate
-      const drift = segment(l, 0.87, FIN.cam[0])
+      const drift = segment(l, RIFFLE_CAM, FIN.cam[0])
       A.tgt.z -= drift * 0.16
       A.pos.z -= drift * 0.12
       res = A
     } else if (l < FIN.push[0]) {
+      // down to a level view that follows the house pressing up out of the crate
       const t = ease.inOutCubic(segment(l, FIN.cam[0], FIN.cam[1]))
       B.pos.copy(S.riffle.pos).add(this.v.set(0, 0, -0.12))
       B.tgt.copy(S.riffle.tgt).add(this.v.set(0, 0, -0.16))
       B.fov = S.riffle.fov
-      res = blend(B, S.fin, t, A)
+      res = blend(B, this.finPose(C), t, A)
     } else {
+      // push onto the grooves and label; homes in on wherever the record really is
       const t = ease.inOutQuad(segment(l, FIN.push[0], FIN.push[1]))
-      res = blend(S.fin, S.push, t, A)
-      // the push homes in on wherever the record really is
+      res = blend(this.finPose(B), S.push, t, A)
       this.v.copy(this.houseState.recCenter).sub(S.push.tgt)
       res.pos.addScaledVector(this.v, t)
       res.tgt.addScaledVector(this.v, t)
+      // and keeps drifting in on the label under the ripple
+      this.v.subVectors(res.tgt, res.pos).normalize()
+      res.pos.addScaledVector(this.v, ease.inOutQuad(segment(l, 0.97, 1)) * 0.14)
     }
     out.position.copy(res.pos)
     out.target.copy(res.tgt)
@@ -1229,13 +1445,20 @@ class Work implements Chapter {
       this.more.classList.toggle('is-in', moreOn)
       setRise(this.moreTitle, moreOn)
     }
-    // the riffle lights each name as its sleeve goes over
+    // the riffle lights the name whose sleeve stands face-out at the front of
+    // the bin (what's on screen); it goes "done" as that sleeve tips over
     let hot = -1
-    if (moreOn) for (let j = 0; j < NR; j++) if (this.flip[NF + j] > 0.5 || (j === 0 && l > RIFFLE[0] - 0.004)) hot = j
-    if (moreOn && hot < 0) hot = 0
+    if (moreOn) {
+      hot = NR
+      for (let j = 0; j < NR; j++)
+        if (this.flip[NF + j] < 0.5) {
+          hot = j
+          break
+        }
+    }
     if (hot !== st.hot) {
       st.hot = hot
-      this.more.classList.toggle('is-riffling', hot >= 0 && hot < NR - 1)
+      this.more.classList.toggle('is-riffling', hot >= 0 && hot < NR)
       this.moreItems.forEach((li, j) => {
         li.classList.toggle('is-hot', j === hot)
         li.classList.toggle('is-done', hot >= 0 && j < hot)
@@ -1243,7 +1466,7 @@ class Work implements Chapter {
     }
     // meter: flipped = done, in hand / riffling = lit
     let cur = cardOn
-    if (moreOn) cur = NF + Math.max(0, hot)
+    if (moreOn) cur = hot < NR ? NF + hot : -1
     let meter = ''
     for (let i = 0; i < NF + NR; i++) meter += i === cur ? '2' : this.flip[i] > 0.5 ? '1' : '0'
     if (meter !== st.meter) {

@@ -16,10 +16,13 @@ import { EXT } from './sand'
 
 export const THICK = 0.05
 export const FLOOR_Y = -0.62
+/** height of a settled line of sand, for its shadow length */
+const PILE_H = 0.0084
 
 export interface PlateUniforms {
   tDensity: THREE.IUniform<THREE.Texture | null>
   uExt: THREE.IUniform<number>
+  /** full length of a grain pile's shadow on the plate, in density-texture uv */
   uShadowOff: THREE.IUniform<THREE.Vector2>
   uWave: THREE.IUniform<THREE.Vector4>
   uTap: THREE.IUniform<THREE.Vector4>
@@ -34,14 +37,15 @@ export class Plate {
   led: THREE.MeshBasicMaterial
   ledPos = new THREE.Vector3(PUCK.x, 0.046, PUCK.z)
   floorU: { uPool: THREE.IUniform<number>; uShadowOff: THREE.IUniform<THREE.Vector2> }
+  /** the post + shaker under the plate, with their resting look (dimmed while edge-on) */
+  private under: { mat: THREE.MeshStandardMaterial; color: THREE.Color; env: number }[] = []
+  private underLevel = 1
 
   constructor(light: THREE.Vector3, mobile: boolean) {
-    const l2 = new THREE.Vector2(light.x, light.z).normalize()
     this.uniforms = {
       tDensity: { value: null },
       uExt: { value: EXT },
-      // a grain pile ~1cm tall under a ~25° key throws a shadow ~2cm long
-      uShadowOff: { value: l2.clone().multiplyScalar(0.018 / (2 * EXT)) },
+      uShadowOff: { value: new THREE.Vector2() },
       uWave: { value: new THREE.Vector4(0, 0, 0.12, 0) },
       uTap: { value: new THREE.Vector4(0, 0, 0, 0) },
       uModeB: { value: new THREE.Vector3(1, 2, 1) },
@@ -88,9 +92,10 @@ export class Plate {
             return mix(mix(pHash(i), pHash(i + vec2(1, 0)), f.x), mix(pHash(i + vec2(0, 1)), pHash(i + vec2(1, 1)), f.x), f.y);
           }
           // laser-etched scale along the front edge: the etch shows bright bare aluminium
-          float etch(vec2 q) {
+          // fw = fwidth(q), taken by the caller in uniform control flow
+          float etch(vec2 q, vec2 fw) {
             if (q.y < 0.915 || q.y > 0.985 || abs(q.x) > 0.905) return 0.0;
-            float fx = fwidth(q.x), fy = fwidth(q.y);
+            float fx = fw.x, fy = fw.y;
             float d = abs(fract(q.x / 0.05 + 0.5) - 0.5) * 0.05;
             float dMaj = abs(fract(q.x / 0.25 + 0.5) - 0.5) * 0.25;
             float tick = 1.0 - smoothstep(0.0011, 0.0011 + fx, d);
@@ -119,12 +124,14 @@ export class Plate {
           if (vWNrm.y > 0.9) {
             vec2 q = vWPos.xz;
             float r = length(q);
-            float env = exp(-pow((r - uWave.x) / (uWave.z * 1.6), 2.0)) * uWave.y;
+            float wq = (r - uWave.x) / (uWave.z * 1.6);
+            float env = exp(-wq * wq) * uWave.y;
             vec2 grad = (r > 1e-4 ? q / r : vec2(0.0)) * cos((r - uWave.x) * 46.0) * env * 0.16;
             grad += modeGrad(q) * uShimmer * sin(uTime * 23.0);
             vec2 tq = q - uTap.xy;
             float tr = length(tq);
-            float tenv = exp(-pow((tr - uTap.z) / 0.12, 2.0)) * uTap.w;
+            float tq2 = (tr - uTap.z) / 0.12;
+            float tenv = exp(-tq2 * tq2) * uTap.w;
             grad += (tr > 1e-4 ? tq / tr : vec2(0.0)) * cos((tr - uTap.z) * 52.0) * tenv * 0.3;
             vec3 nW = normalize(vec3(-grad.x, 1.0, -grad.y));
             normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
@@ -132,15 +139,22 @@ export class Plate {
         )
         .replace(
           '#include <opaque_fragment>',
-          /* glsl */ `if (vWNrm.y > 0.9) {
+          /* glsl */ `vec2 etchW = fwidth(vWPos.xz);
+          if (vWNrm.y > 0.9) {
             vec2 duv = vWPos.xz / uExt * 0.5 + 0.5;
-            float dSh = texture2D(tDensity, duv + uShadowOff).r;
-            float dNear = texture2D(tDensity, duv).r;
+            // grain piles shade the plate away from the key: march a few taps toward
+            // the light, so a low raking key draws long, fading streaks
+            float sh = 0.0;
+            for (int i = 1; i <= 4; i++) {
+              float f = float(i) * 0.25;
+              float dS = textureLod(tDensity, duv + uShadowOff * f, 0.0).r;
+              sh = max(sh, (1.0 - exp(-dS * 0.22)) * (1.12 - 0.4 * f));
+            }
+            float dNear = textureLod(tDensity, duv, 0.0).r;
             float dAo = textureLod(tDensity, duv, 2.2).r;
-            float sh = 1.0 - exp(-dSh * 0.22);
             float ao = 1.0 - exp(-(dAo * 0.12 + dNear * 0.1));
-            outgoingLight *= (1.0 - 0.72 * sh) * (1.0 - 0.5 * ao);
-            outgoingLight = mix(outgoingLight, outgoingLight * 1.8 + vec3(0.045, 0.046, 0.05), etch(vWPos.xz) * 0.75);
+            outgoingLight *= (1.0 - 0.72 * min(sh, 1.0)) * (1.0 - 0.5 * ao);
+            outgoingLight = mix(outgoingLight, outgoingLight * 1.8 + vec3(0.045, 0.046, 0.05), etch(vWPos.xz, etchW) * 0.75);
           }
           #include <opaque_fragment>`,
         )
@@ -191,11 +205,17 @@ export class Plate {
     this.group.add(puck, ring, led, cable)
 
     /* ---------------- post + shaker below ---------------- */
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, -FLOOR_Y - 0.2, 24), satin)
+    // own materials, so the hardware can sink into the dark while the plate reads as one line
+    const postMat = new THREE.MeshPhysicalMaterial({ color: '#8e8e94', metalness: 1, roughness: 0.36, envMapIntensity: 0.5 })
+    const bodyMat = new THREE.MeshStandardMaterial({ color: '#0d0d0e', metalness: 0.2, roughness: 0.55 })
+    // satin rather than mirror chrome: a polished ring glares under the plate
+    const trimMat = new THREE.MeshPhysicalMaterial({ color: '#6c6c72', metalness: 1, roughness: 0.42, envMapIntensity: 0.3 })
+    for (const mat of [postMat, bodyMat, trimMat]) this.under.push({ mat, color: mat.color.clone(), env: mat.envMapIntensity })
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, -FLOOR_Y - 0.2, 24), postMat)
     post.position.y = (-THICK + FLOOR_Y + 0.2) / 2
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.38, 0.22, seg), black)
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.38, 0.22, seg), bodyMat)
     body.position.y = FLOOR_Y + 0.11
-    const trim = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.006, 8, seg), chrome)
+    const trim = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.006, 8, seg), trimMat)
     trim.rotation.x = Math.PI / 2
     trim.position.y = FLOOR_Y + 0.22
     this.group.add(post, body, trim)
@@ -203,7 +223,7 @@ export class Plate {
     /* ---------------- floor: lit pool + soft plate shadow ---------------- */
     this.floorU = {
       uPool: { value: 1 },
-      uShadowOff: { value: new THREE.Vector2(-light.x, -light.z).multiplyScalar(-FLOOR_Y / Math.max(0.2, light.y)) },
+      uShadowOff: { value: new THREE.Vector2() },
     }
     const floorMat = new THREE.ShaderMaterial({
       uniforms: this.floorU,
@@ -242,5 +262,26 @@ export class Plate {
     floor.position.y = FLOOR_Y
     floor.renderOrder = -1
     this.group.add(floor)
+    this.setLight(light)
+  }
+
+  /** 0..1 how much the post and shaker under the plate are lit (0 = lost in the dark). */
+  setUnder(v: number) {
+    if (Math.abs(v - this.underLevel) < 1e-3) return
+    this.underLevel = v
+    for (const u of this.under) {
+      u.mat.color.copy(u.color).multiplyScalar(v)
+      u.mat.envMapIntensity = u.env * v
+    }
+  }
+
+  /** Re-aim the contact shadows for a key light direction (unit, pointing at the light). */
+  setLight(light: THREE.Vector3) {
+    const y = Math.max(0.06, light.y)
+    const h = Math.hypot(light.x, light.z) || 1
+    // a grain pile ~8mm tall throws a shadow 8mm / tan(elevation) long (~1.8cm at 25°)
+    const len = Math.min(0.07, (PILE_H * h) / y)
+    this.uniforms.uShadowOff.value.set(light.x / h, light.z / h).multiplyScalar(len / (2 * EXT))
+    this.floorU.uShadowOff.value.set(-light.x, -light.z).multiplyScalar(-FLOOR_Y / Math.max(0.2, light.y))
   }
 }

@@ -5,14 +5,29 @@
   inset: 0;
 }
 
-/* ---- paper falloff behind the copy column: the key light drops off into the cyc */
+/* ---- paper falloff behind the copy column: the key light drops off into the cyc.
+   Held nearly solid to the list's right edge (--pr-col), so the far end of the desk
+   only ever ghosts in behind the copy */
+.stage-process .pr {
+  --pr-col: calc(var(--gutter) + min(30vw, 400px));
+}
 .stage-process .pr-scrim {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background:
-    linear-gradient(90deg, rgba(238, 235, 228, 0.94) 0%, rgba(238, 235, 228, 0.86) 24%, rgba(238, 235, 228, 0.5) 36%, rgba(238, 235, 228, 0) 50%);
+  background: linear-gradient(
+    90deg,
+    rgba(238, 235, 228, 0.95) 0,
+    rgba(238, 235, 228, 0.9) calc(var(--pr-col) - 60px),
+    rgba(238, 235, 228, 0.8) calc(var(--pr-col) + 12px),
+    rgba(238, 235, 228, 0.36) calc(var(--pr-col) + 11vw),
+    rgba(238, 235, 228, 0) calc(var(--pr-col) + 21vw)
+  );
   will-change: opacity;
+}
+/* portrait only (see the media query at the end) */
+.stage-process .pr-scrim--head {
+  display: none;
 }
 
 /* ---- headline */
@@ -23,7 +38,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: min(44vw, 560px);
+  max-width: min(48vw, 640px);
 }
 .stage-process .pr-eyebrow {
   opacity: 0;
@@ -37,7 +52,8 @@
   transform: none;
 }
 .stage-process .pr-title {
-  font-size: clamp(2.3rem, 5vw, 4.8rem);
+  font-size: clamp(2.2rem, 4.4vw, 4.4rem);
+  white-space: nowrap;
 }
 
 /* ---- the process as a channel list */
@@ -83,7 +99,12 @@
 .stage-process .pr-list.is-in .pr-led {
   opacity: 0.45;
 }
+/* fader up: the LED holds a dim green; the current step's LED is fully lit */
 .stage-process .pr-list.is-in .pr-row.is-live .pr-led {
+  opacity: 0.55;
+  background: var(--signal-deep);
+}
+.stage-process .pr-list.is-in .pr-row.is-active .pr-led {
   opacity: 1;
   background: var(--signal);
   box-shadow: var(--signal-glow);
@@ -93,7 +114,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.1em;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   opacity: 0;
   transition:
     opacity 0.4s ease,
@@ -106,22 +127,27 @@
 }
 .stage-process .pr-db::after {
   content: ' dB';
-  opacity: 0.7;
 }
 .stage-process .pr-list.is-in .pr-num,
 .stage-process .pr-list.is-in .pr-db {
   opacity: 1;
 }
+/* every step stays readable (muted ink ≈ 5.8:1 on paper); the current one takes full ink and weight */
 .stage-process .pr-row-title {
   font-family: var(--font-sans);
-  font-weight: 600;
+  font-weight: 500;
   font-size: clamp(1.25rem, 1.9vw, 1.75rem);
   letter-spacing: -0.03em;
   line-height: 1.05;
-  color: var(--fg-faint);
-  transition: color 0.35s ease;
+  color: var(--fg-muted);
+  transition:
+    color 0.35s ease,
+    font-weight 0.35s ease;
 }
-.stage-process .pr-row.is-active .pr-row-title,
+.stage-process .pr-row.is-active .pr-row-title {
+  font-weight: 650;
+  color: var(--fg);
+}
 .stage-process .pr-row.is-active .pr-num,
 .stage-process .pr-row.is-active .pr-db {
   color: var(--fg);
@@ -183,32 +209,36 @@
   line-height: 0.95;
   color: var(--fg);
 }
+/* full ink: the labels sit on the cyc floor in front of the desk, where the key light falls off */
 .stage-process .pr-stat-l {
   margin: 0;
   font-family: var(--font-sans);
   font-size: clamp(13px, 1vw, 15px);
   line-height: 1.45;
-  color: var(--fg-muted);
+  color: var(--fg);
   max-width: 30ch;
 }
 
 /* ---- phones / portrait: title on top, list and stats stacked at the bottom */
 @media (max-aspect-ratio: 4/5) {
-  /* solid paper behind the headline and the list, fading into the desk between them */
+  /* solid paper behind the headline and the list, fading into the desk between them.
+     The headline's paper is its own layer: it is up from the first frame. */
   .stage-process .pr-scrim {
-    background:
-      linear-gradient(
-        180deg,
-        rgba(238, 235, 228, 0.95) 0,
-        rgba(238, 235, 228, 0.9) calc(var(--pr-head-b, 22%) + 4px),
-        rgba(238, 235, 228, 0) calc(var(--pr-head-b, 22%) + 70px)
-      ),
-      linear-gradient(
-        0deg,
-        rgba(238, 235, 228, 0.96) 0,
-        rgba(238, 235, 228, 0.9) calc(var(--pr-list-b, 40%) + 6px),
-        rgba(238, 235, 228, 0) calc(var(--pr-list-b, 40%) + 80px)
-      );
+    background: linear-gradient(
+      0deg,
+      rgba(238, 235, 228, 0.96) 0,
+      rgba(238, 235, 228, 0.9) calc(var(--pr-list-b, 40%) + 6px),
+      rgba(238, 235, 228, 0) calc(var(--pr-list-b, 40%) + 80px)
+    );
+  }
+  .stage-process .pr-scrim--head {
+    display: block;
+    background: linear-gradient(
+      180deg,
+      rgba(238, 235, 228, 0.95) 0,
+      rgba(238, 235, 228, 0.9) calc(var(--pr-head-b, 22%) + 4px),
+      rgba(238, 235, 228, 0) calc(var(--pr-head-b, 22%) + 70px)
+    );
   }
   .stage-process .pr-head {
     gap: 12px;
@@ -216,7 +246,7 @@
     right: var(--gutter);
   }
   .stage-process .pr-title {
-    font-size: clamp(2rem, 9vw, 3rem);
+    font-size: clamp(1.9rem, 8.6vw, 3rem);
   }
   .stage-process .pr-list {
     right: var(--gutter);

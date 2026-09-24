@@ -2,20 +2,24 @@ import type { Engine, EngineState } from '../core/Engine'
 import type { Frame } from '../core/types'
 import type { Sound } from './sound'
 import { BRAND, MICROCOPY } from '../content'
-import { markSvg } from './mark'
+import { CONCEPT_TAG, WORDMARK, markSvg } from './mark'
 import { holdInert, releaseInert } from './inert'
 import { mountRotateGate } from './rotate'
+import { bindScene, holdScene, onScenePause, releaseScene } from './scene'
 import { createSwap } from './swap'
 
 /*
  * Persistent chrome: a quiet piece of studio hardware around the story.
  *
- *   top-left      the Hark mark (its diamond is the power LED) + "Hark Digital
- *                 Resonance" + locale line in mono (→ back to start)
+ *   top-left      the Hark mark (its diamond is the power LED) + the real
+ *                 "Hark.Digital" wordmark (its dot is a signal LED), with a
+ *                 small "Concept · Resonance" tag under it (→ back to start)
  *   top-right     Work · Services · Contact + "Start a project" pill
- *                 (≤ 820px: Menu → full-screen tracklist dialog)
+ *                 (≤ 820px: Menu → full-screen tracklist dialog, Side A 01–04
+ *                 and Side B 05–07)
  *   bottom-left   AUDIO slide switch with an LED ladder that meters the
- *                 actual output
+ *                 actual output; in the opening track, while audio is off, a
+ *                 quiet "Best with sound" cue beside it
  *   bottom-right  tape deck readout: reels whose tape packs wind from left to
  *                 right with the story, "Track 02 — The Crate · Work", an
  *                 odometer-style mm:ss tape counter, and a segmented tape
@@ -47,6 +51,10 @@ const PLAIN: Record<string, string> = {
 
 /** The tape: one viewport of scroll is one minute of tape. */
 const SECONDS_PER_VH = 60
+/** tracks 01–04 are Side A, the rest Side B (so "End of side B" at the sign-off is true) */
+const SIDE_A = 4
+/** how long after the chrome rises the "Best with sound" cue waits before it appears (ms) */
+const CUE_DELAY = 1600
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
@@ -103,6 +111,12 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
   const lenSum = slots.reduce((a, s) => a + s.def.length, 0) || 1
 
   mountRotateGate()
+  // loader question, rotate card, open menu: an unseen scene is not rendered
+  bindScene(engine)
+  // chapters stop updating while the scene is paused, so let go of any tone they asked for
+  onScenePause.push(paused => {
+    if (paused) sound.hush()
+  })
   // dev-only handle for audio level checks in headless tests
   if (import.meta.env.DEV) (window as unknown as { __harkSound?: Sound }).__harkSound = sound
 
@@ -121,22 +135,30 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
     })
     .join('')
 
-  const tracklist = slots
-    .map((s, i) => {
-      const plain = plainOf(s.def.id, s.def.label)
-      return `<li style="--i:${i}"><a class="ch-ml" href="#${s.def.id}" data-goto="${s.def.id}" aria-label="${esc(plain)}, ${esc(s.def.label)}">
+  const track = (s: (typeof slots)[number], i: number) => {
+    const plain = plainOf(s.def.id, s.def.label)
+    return `<li style="--i:${i + (i < SIDE_A ? 1 : 2)}"><a class="ch-ml" href="#${s.def.id}" data-goto="${s.def.id}" aria-label="${esc(plain)}, ${esc(s.def.label)}">
         <span class="ch-ml-n" aria-hidden="true">${pad2(i + 1)}</span>
         <span class="ch-ml-name">${esc(plain)}</span>
         <span class="ch-ml-tag" aria-hidden="true">${esc(s.def.label)}</span>
         <span class="ch-ml-dur" aria-hidden="true">${mmss(s.def.length * SECONDS_PER_VH)}</span>
       </a></li>`
-    })
-    .join('')
+  }
+  // the record has two sides: a label + running time over each half of the tracklist
+  const side = (name: string, from: number, to: number, stagger: number) => {
+    const part = slots.slice(from, to)
+    if (!part.length) return ''
+    const len = part.reduce((a, s) => a + s.def.length, 0)
+    const id = `ch-side-${name.toLowerCase()}`
+    return `<p class="ch-side" id="${id}" style="--i:${stagger}"><span class="ch-side-k">Side ${name}</span><span class="ch-side-dur" aria-hidden="true">${mmss(len * SECONDS_PER_VH)}</span></p>
+        <ol class="ch-menu-list" start="${from + 1}" aria-labelledby="${id}">${part.map((s, j) => track(s, from + j)).join('')}</ol>`
+  }
+  const tracklist = side('A', 0, SIDE_A, 0) + side('B', SIDE_A, total, SIDE_A + 1)
 
   const brandInner = `<span class="ch-mark">${markSvg('ch-mark-svg')}</span>
         <span class="ch-brand-text" aria-hidden="true">
-          <span class="ch-word"><span class="ch-word-a">Hark Digital</span> <em>Resonance</em></span>
-          <span class="ch-sub">${esc(BRAND.locale)}</span>
+          <span class="ch-word">${WORDMARK}</span>
+          <span class="ch-sub">${CONCEPT_TAG}</span>
         </span>`
 
   root.innerHTML = `
@@ -163,13 +185,13 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
       </div>
       <div class="ch-menu-body">
         <p class="ch-menu-eyebrow" id="ch-menu-title"><span class="ch-menu-eyebrow-led" aria-hidden="true"></span>Tracklist</p>
-        <ol class="ch-menu-list">${tracklist}</ol>
+        ${tracklist}
         <div class="ch-menu-foot">
           <a class="hud-btn ch-menu-cta" href="#contact" data-goto="contact">Start a project</a>
           <a class="ch-menu-mail" href="mailto:${BRAND.email}">${BRAND.email}</a>
         </div>
       </div>
-      <p class="ch-menu-side" aria-hidden="true">Side A <b>·</b> ${mmss(lenSum * SECONDS_PER_VH)}</p>
+      <p class="ch-menu-side" aria-hidden="true">Runtime <b>·</b> ${mmss(lenSum * SECONDS_PER_VH)}</p>
     </div>
 
     <div class="ch-bottom">
@@ -177,6 +199,7 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
         <span class="ch-switch" aria-hidden="true"><i></i></span>
         <span class="ch-audio-txt">${MICROCOPY.audio}<span class="ch-audio-colon" aria-hidden="true">:</span> <span class="ch-audio-state" aria-hidden="true">${MICROCOPY.audioOff}</span></span>
         <span class="ch-ladder" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="ch-audio-cue" aria-hidden="true"><i class="ch-audio-cue-arrow"></i><em>Best with sound</em></span>
       </button>
 
       <div class="ch-deck">
@@ -239,14 +262,9 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
   /**
    * Move keyboard / screen-reader focus to the destination chapter's heading
    * in the linear copy layer, so the next Tab continues from there (the way a
-   * route change should behave). preventScroll keeps the page still.
+   * route change should behave). The engine does it without re-landing.
    */
-  const focusChapter = (id: string) => {
-    const heading = document.getElementById(id)?.querySelector<HTMLElement>('h1, h2')
-    if (!heading) return
-    if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1
-    heading.focus({ preventScroll: true })
-  }
+  const focusChapter = (id: string) => engine.focusChapter(id)
 
   root.addEventListener('click', e => {
     const a = (e.target as Element).closest<HTMLElement>('[data-goto]')
@@ -308,8 +326,13 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
     soundState.textContent = on ? MICROCOPY.audioOn : MICROCOPY.audioOff
     chrome.classList.toggle('is-live', on)
   }
+  // once audio has been on this session the "Best with sound" cue has done its job
+  let everOn = sound.enabled
   soundBtn.addEventListener('click', () => sound.toggle())
-  sound.onChange.push(syncSound)
+  sound.onChange.push(on => {
+    if (on) everOn = true
+    syncSound(on)
+  })
   syncSound(sound.enabled)
 
   // ---------------------------------------------------------------- mobile menu
@@ -320,6 +343,8 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
   // from the Menu button, the same pressure-wave shape as the chapter cuts.
   let menuOpen = false
   let hideTimer = 0
+  let pauseTimer = 0
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
   const focusables = () =>
     [...menu.querySelectorAll<HTMLElement>('a[href], button')].filter(el => !el.hidden && el.getClientRects().length > 0)
   const setIrisOrigin = () => {
@@ -349,6 +374,9 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
       $('.ch-bottom'),
     ])
     engine.lenis.stop()
+    // once the sheet has fully covered the scene, stop rendering it
+    clearTimeout(pauseTimer)
+    pauseTimer = window.setTimeout(() => menuOpen && holdScene('menu'), reduced ? 60 : 760)
     menu.scrollTop = 0
     const now = menuLinks[lastIndex] ?? menuLinks[0]
     now?.focus({ preventScroll: true })
@@ -359,6 +387,8 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
     chrome.classList.remove('is-menu')
     menuBtn.setAttribute('aria-expanded', 'false')
     releaseInert('menu')
+    clearTimeout(pauseTimer)
+    releaseScene('menu')
     engine.lenis.start()
     hideTimer = window.setTimeout(() => {
       if (!menuOpen) menu.hidden = true
@@ -387,15 +417,23 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
 
   // -------------------------------------------------------------------- reveal
 
-  const revealChrome = () => chrome.classList.add('is-in')
+  let revealedAt = -1
+  const revealChrome = () => {
+    if (revealedAt >= 0) return
+    revealedAt = performance.now()
+    chrome.classList.add('is-in')
+  }
   if (document.documentElement.dataset.ready) revealChrome()
   else window.addEventListener('hark:reveal', revealChrome, { once: true })
-  // safety net: never leave the chrome hidden
-  window.setTimeout(revealChrome, 9000)
+  // safety net: never leave the chrome hidden (but never rise behind the
+  // loader while it is still asking how to listen)
+  const safety = () => (document.querySelector('#loader .ld') ? window.setTimeout(safety, 2000) : revealChrome())
+  window.setTimeout(safety, 9000)
 
   // -------------------------------------------------------------------- update
 
   let dark = false
+  let cueOn = false
   let cutTimer = 0
   let lastF = -1
   let meterV = 0
@@ -479,6 +517,14 @@ export function createChrome(root: HTMLElement, engine: Engine, sound: Sound) {
       const turn = secs * 9
       reelL.setAttribute('transform', `rotate(${(turn * (0.8 + p * 0.6)).toFixed(1)} 15 11)`)
       reelR.setAttribute('transform', `rotate(${(turn * (1.4 - p * 0.6)).toFixed(1)} 41 11)`)
+
+      // "Best with sound": only in the opening track, only while audio is off and never yet on
+      const cue =
+        revealedAt >= 0 && performance.now() - revealedAt > CUE_DELAY && slot.def.id === 'hero' && !sound.enabled && !everOn && !menuOpen
+      if (cue !== cueOn) {
+        cueOn = cue
+        chrome.classList.toggle('is-cue-sound', cue)
+      }
 
       // LED ladder meters the real output (quick attack, slow VU-like release)
       const level = sound.enabled ? sound.meter() : 0

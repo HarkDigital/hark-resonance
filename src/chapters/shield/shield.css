@@ -2,6 +2,12 @@
 
 .stage-shield {
   --sh-alert: var(--alert, #ff4a2e);
+  /* the alert hue, darkened for small text on the paper readout (≈ 5.6:1) */
+  --sh-alert-ink: #b3260f;
+}
+.stage-shield.is-dark {
+  /* …and lifted for the graphite readout (≈ 7:1) */
+  --sh-alert-ink: #ff8468;
 }
 
 /* ---------- copy: head (left) + side column (right) ---------- */
@@ -44,6 +50,8 @@
 }
 .stage-shield .sh-side > * {
   grid-area: 1 / 1;
+  /* own heights (the camera frames the scope under whichever block is up) */
+  align-self: start;
 }
 
 .stage-shield .sh-body {
@@ -100,11 +108,14 @@
   gap: 2px;
   padding: 7px 10px 7px;
   margin-top: -6px;
-  background: rgba(247, 245, 240, 0.78);
+  background: rgba(247, 245, 240, 0.94);
   border: 1px solid var(--line);
   border-radius: 6px;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
+  transition:
+    background 0.4s ease,
+    border-color 0.4s ease;
 }
 .stage-shield .sh-co-k {
   font-weight: 500;
@@ -116,8 +127,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* the intrusion readout: the orange lives in the dot, leader and trace; the
+   label text stays readable (≥ 4.5:1 on either box) */
 .stage-shield .sh-callout--alert .sh-co-k {
-  color: var(--sh-alert);
+  color: var(--sh-alert-ink);
 }
 .stage-shield .sh-callout--alert .callout-dot {
   background: var(--sh-alert);
@@ -128,7 +141,12 @@
 }
 .stage-shield .sh-callout--alert .callout-svg path {
   stroke: var(--sh-alert);
-  stroke-opacity: 0.7;
+  stroke-opacity: 0.8;
+}
+
+/* dark room (in-beat + noise): graphite glass readouts */
+.stage-shield.is-dark .sh-callout .callout-label {
+  background: rgba(17, 17, 19, 0.88);
 }
 
 @keyframes sh-blink {
@@ -140,6 +158,19 @@
   100% {
     opacity: 0.35;
   }
+}
+
+/* measures the shared layout tokens for the camera framing */
+.stage-shield .sh-probe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  padding: var(--safe-top) var(--gutter) var(--safe-bottom) var(--gutter);
+  box-sizing: content-box;
+  pointer-events: none;
 }
 
 /* ---------- narrow: one column, calm block under the title ---------- */

@@ -129,7 +129,9 @@ export function matrixMaterial(text: string, seed: number): THREE.ShaderMaterial
         float col = cell.x / GRID.x;
         float edge = uReveal * 1.25 - 0.1;
         float shown = step(col, edge);
-        float lead = exp(-pow((col - edge) * 18.0, 2.0)) * step(0.001, uReveal) * step(uReveal, 0.999);
+        // (col - edge) goes negative: square it by hand, never pow() a negative base
+        float le = (col - edge) * 18.0;
+        float lead = exp(-le * le) * step(0.001, uReveal) * step(uReveal, 0.999);
         float text = txt * shown + lead * (0.35 + 0.65 * txt);
 
         float lit = mix(bar * 0.42, text, uMode);

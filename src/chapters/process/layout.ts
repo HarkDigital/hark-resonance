@@ -33,7 +33,10 @@ export const LAYOUT = {
   masterMeters: [1.44, 1.52],
   levelKnob: [1.88, -0.62] as [number, number],
   levelKnobR: 0.13,
-  logoAt: [1.52, 0.98] as [number, number],
+  /** the maker's plate: mark centre (clear of the master meter windows, which end at x ≈ 1.56) */
+  logoAt: [1.72, 0.98] as [number, number],
+  /** power LED on the maker's plate */
+  powerLed: [2.2, 0.945] as [number, number],
 
   /** fader slot, relative to the strip centre */
   slotDX: -0.07,
@@ -79,24 +82,29 @@ export const DB_MARKS: [number, string, boolean][] = [
   [0, '∞', true],
 ]
 
+/** [fader position, dB] breakpoints of the legend (module-level: faderDb runs every frame) */
+const DB_TABLE: readonly (readonly [number, number])[] = [
+  [0, -90],
+  [0.12, -40],
+  [0.23, -30],
+  [0.36, -20],
+  [0.5, -10],
+  [0.625, -5],
+  [0.75, 0],
+  [0.875, 5],
+  [1, 10],
+]
+
 /** fader position → dB, for the HUD readout (piecewise-linear over the legend) */
 export function faderDb(p: number): number {
-  const table: [number, number][] = [
-    [0, -90],
-    [0.12, -40],
-    [0.23, -30],
-    [0.36, -20],
-    [0.5, -10],
-    [0.625, -5],
-    [0.75, 0],
-    [0.875, 5],
-    [1, 10],
-  ]
   if (p <= 0.004) return -Infinity
-  for (let i = 1; i < table.length; i++) {
-    const [p1, d1] = table[i]
-    const [p0, d0] = table[i - 1]
-    if (p <= p1) return d0 + ((p - p0) / (p1 - p0)) * (d1 - d0)
+  for (let i = 1; i < DB_TABLE.length; i++) {
+    const p1 = DB_TABLE[i][0]
+    if (p <= p1) {
+      const p0 = DB_TABLE[i - 1][0]
+      const d0 = DB_TABLE[i - 1][1]
+      return d0 + ((p - p0) / (p1 - p0)) * (DB_TABLE[i][1] - d0)
+    }
   }
   return 10
 }

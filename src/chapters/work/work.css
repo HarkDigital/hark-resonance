@@ -200,7 +200,7 @@
   flex: none;
   width: 2.4ch;
 }
-/* LED next to the name whose sleeve is going over */
+/* LED next to the name whose sleeve stands face-out at the front of the bin */
 .stage-work .wk-li-n::before {
   content: '';
   position: absolute;

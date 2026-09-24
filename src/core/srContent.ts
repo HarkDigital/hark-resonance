@@ -52,7 +52,7 @@ const COPY: Record<string, () => string> = {
     <h2>${esc(SECURITY.title)}</h2>
     <p>${esc(SECURITY.eyebrow)}.</p>
     <p>${esc(SECURITY.body)}</p>
-    <p><a href="${esc(SECURITY.href)}">${esc(SECURITY.cta.replace(/\s*→\s*$/, ''))}</a></p>`,
+    <p><a href="${esc(SECURITY.href)}" data-anchor="0">${esc(SECURITY.cta.replace(/\s*→\s*$/, ''))}</a></p>`,
 
   voices: () => `
     <h2>${esc(SECTIONS.voices.title)}</h2>
@@ -63,18 +63,18 @@ const COPY: Record<string, () => string> = {
     ).join('')}`,
 
   process: () => `
-    <h2>How we work</h2>
-    <p>We listen first. Then we build.</p>
+    <p>How we work</p>
+    <h2>We listen first. Then we build.</h2>
     <ol>${PROCESS.map((p, i) => `<li><h3>${stop('process', i, p.title)}</h3><p>${esc(p.text)}</p></li>`).join('')}</ol>
     <ul>${[STATS[0], STATS[2], STATS[1]].map(s => `<li>${esc(s.value)}: ${esc(s.label)}</li>`).join('')}</ul>`,
 
   contact: () => `
     <h2>${esc(CONTACT.title)}</h2>
     <p>${esc(CONTACT.body)}</p>
-    <p><a href="${esc(CONTACT.href)}">Email ${esc(BRAND.email)}</a> <button type="button" data-copy-email>Copy email address</button> <span data-copy-status aria-live="polite"></span></p>
-    <p>${ext(BRAND.classicSite, 'See the classic 2026 site')} · ${ext(BRAND.orbitSite, 'See the Orbit concept')}</p>
-    <p><a href="#hero" data-land="hero">Back to top</a></p>
-    <p>© ${new Date().getFullYear()} ${esc(BRAND.name)} · ${esc(BRAND.locale)}</p>`,
+    <p>Write to: <a href="${esc(CONTACT.href)}">${esc(BRAND.email)}</a> <button type="button" data-copy-email>Copy email address</button> <span data-copy-status aria-live="polite"></span></p>
+    <p>Elsewhere: ${ext(BRAND.classicSite, 'the classic 2026 site')} · ${ext(BRAND.orbitSite, 'the Orbit concept')}</p>
+    <p>Pressed in: © ${new Date().getFullYear()} ${esc(BRAND.name)} · ${esc(BRAND.locale)}</p>
+    <p><a href="#hero" data-land="hero">Back to top</a></p>`,
 }
 
 /** Visually hidden, linear copy for one chapter (null for unknown ids). */

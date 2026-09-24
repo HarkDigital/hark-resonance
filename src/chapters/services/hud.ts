@@ -1,5 +1,5 @@
 import { el, rise, setRise } from '../../core/dom'
-import { BRAND, SECTIONS, SERVICES } from '../../content'
+import { SECTIONS, SERVICES } from '../../content'
 import { LOGO_HZ, MODES } from './modes'
 
 /*
@@ -11,6 +11,9 @@ import { LOGO_HZ, MODES } from './modes'
  *   panel    SERVICE 07 / 11 · title (rise) · blurb · tags · 01–11 keys
  *   readout  drive frequency (sweeps with scroll) on a log fader scale
  *   finale   the Hark mark caption
+ *
+ * The camera frames the plate into whatever space this HUD leaves free, so
+ * metrics() reports the live layout (re-measured only when it changes).
  */
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -31,6 +34,19 @@ const setOn = (node: HTMLElement, on: boolean, cls = 'is-on') => {
 const HZ_MIN = 150
 const HZ_MAX = 3000
 const scaleX = (hz: number) => Math.min(1, Math.max(0, Math.log(Math.max(hz, HZ_MIN) / HZ_MIN) / Math.log(HZ_MAX / HZ_MIN)))
+
+/** Live HUD layout in stage pixels (the stage is the full viewport). */
+export interface HudMetrics {
+  /** right edge of the copy column (desktop) */
+  colRight: number
+  /** top / bottom of the panel: the safe band on desktop, the sheet on phones */
+  panelTop: number
+  panelBottom: number
+  /** bottom of the Hz readout (0 when hidden) */
+  readoutBottom: number
+  /** the chrome's safe top inset */
+  safeTop: number
+}
 
 export interface HudState {
   introOn: boolean
@@ -62,10 +78,14 @@ export class Hud {
   private finaleTitle: HTMLElement
   private lastShown = -2
   private lastHz = -1
+  private dirty = true
+  private m: HudMetrics = { colRight: 0, panelTop: 0, panelBottom: 0, readoutBottom: 0, safeTop: 0 }
+  private probe: HTMLElement
 
   constructor(
-    stage: HTMLElement,
+    private stage: HTMLElement,
     private jump: (k: number) => void,
+    markLabel: string,
   ) {
     /* intro */
     this.intro = el('div', 'svc-intro', undefined, stage)
@@ -119,8 +139,30 @@ export class Hud {
 
     /* finale */
     this.finale = el('div', 'svc-finale', undefined, stage)
-    el('p', 'hud-eyebrow', `Mode 12 · ${BRAND.short}`, this.finale)
-    this.finaleTitle = rise(el('h2', 'hud-h2 svc-finale-title', undefined, this.finale), 'Make the internet <em>listen.</em>')
+    el('p', 'hud-eyebrow', markLabel, this.finale)
+    this.finaleTitle = rise(el('h2', 'hud-h2 svc-finale-title', undefined, this.finale), 'Every frequency, one <em>studio.</em>')
+
+    /* layout probe: an empty box pinned to the safe band, for the camera fit */
+    this.probe = el('div', 'svc-probe', undefined, stage)
+    this.probe.setAttribute('aria-hidden', 'true')
+    const ro = new ResizeObserver(() => (this.dirty = true))
+    for (const n of [stage, this.panel, this.readout, this.probe]) ro.observe(n)
+  }
+
+  /** Where the copy sits right now, so the plate can be framed into the space left over. */
+  metrics(): HudMetrics {
+    if (this.dirty) {
+      this.dirty = false
+      const m = this.m
+      // offset* ignore transforms, so rising copy never moves the frame
+      m.colRight = this.panel.offsetLeft + this.panel.offsetWidth
+      m.panelTop = this.panel.offsetTop
+      m.panelBottom = this.panel.offsetTop + this.panel.offsetHeight
+      m.readoutBottom = this.readout.offsetHeight ? this.readout.offsetTop + this.readout.offsetHeight : 0
+      m.safeTop = this.probe.offsetTop
+      if (!this.stage.offsetHeight) this.dirty = true
+    }
+    return this.m
   }
 
   update(s: HudState) {

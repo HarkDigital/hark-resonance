@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { BRAND, MICROCOPY } from '../../content'
 import { Callout, el, rise, setRise } from '../../core/dom'
 import { clamp } from '../../core/math'
+import { T } from './shared'
 
 const _p = new THREE.Vector3()
 
@@ -36,10 +37,16 @@ const WAVE_PATH = (() => {
   return d
 })()
 
+/** the tagline with its last word set in the serif italic */
+const TAGLINE = BRAND.tagline.replace(/(\S+)$/, '<em>$1</em>')
+/** 'Hark Digital Design · Philadelphia' — a record-sleeve credit, straight from the brand */
+const CREDIT = `${BRAND.name} · ${BRAND.locale.split('·')[0].trim()}`
+
 /**
- * The hero's DOM: the signal statement, the scroll hint with its waveform
- * glyph, the pressure-test readout and wedge callouts, and the payoff
- * headline + CTAs. Everything reveals with the shared word-rise.
+ * The hero's DOM: the room-tone statement (a sleeve note, bottom left), the
+ * scroll hint with its waveform glyph, the pressure-test readout and wedge
+ * callouts, and the payoff: an album cover, the tagline set as a centred
+ * liner credit beneath the mark. Text reveals with the shared word-rise.
  */
 export class HeroUI {
   root: HTMLDivElement
@@ -52,7 +59,9 @@ export class HeroUI {
   private meterPulse: HTMLElement
   private payoff: HTMLElement
   private scrim: HTMLElement
-  private payoffEyebrow: HTMLElement
+  private sleeve: HTMLElement
+  private credit: HTMLElement
+  private creditText: HTMLElement
   private title: HTMLElement
   private ctas: HTMLElement
   callouts: HeroCallout[] = []
@@ -69,7 +78,7 @@ export class HeroUI {
     requestAnimationFrame(() => this.measureSafe())
     window.addEventListener('resize', () => this.measureSafe())
 
-    // --- the signal statement (top right) ---
+    // --- room tone: the sleeve note (bottom left on wide screens, top on phones) ---
     this.manifesto = el('div', 'hero-manifesto', undefined, this.root)
     el('p', 'hud-eyebrow hero-fade', MICROCOPY.signalEyebrow, this.manifesto)
     this.manifestoText = rise(el('p', 'hero-manifesto__text', undefined, this.manifesto), BRAND.manifesto)
@@ -95,16 +104,19 @@ export class HeroUI {
     this.meterVal = el('span', 'hero-meter__val', '−∞ dB', foot)
     el('span', 'hud-label', 'Anechoic · 0.00 s RT60', foot)
 
-    // --- payoff (bottom left) ---
+    // --- payoff: an album cover. The mark is the art; the tagline is its liner credit ---
     this.scrim = el('div', 'hero-scrim', undefined, this.root)
+    // crop marks at the corners of a square sleeve, between the chrome bands
+    this.sleeve = el('div', 'hero-sleeve', undefined, this.root)
     this.payoff = el('div', 'hero-payoff', undefined, this.root)
-    this.payoffEyebrow = el('p', 'hud-eyebrow hero-fade', 'Hark means listen', this.payoff)
-    this.title = rise(el('h2', 'hud-title hero-title', undefined, this.payoff), 'Make the internet <em>listen.</em>')
+    this.credit = el('p', 'hud-label hero-credit', undefined, this.payoff)
+    this.creditText = rise(el('span', 'hero-credit__text', undefined, this.credit), CREDIT)
+    this.title = rise(el('h2', 'hud-title hero-title', undefined, this.payoff), TAGLINE)
     this.ctas = el('div', 'hero-ctas hero-fade', undefined, this.payoff)
     const work = el('button', 'hud-btn', 'See the work', this.ctas)
     work.type = 'button'
     work.addEventListener('click', () => window.__hark?.land('work'))
-    const contact = el('a', 'hud-btn hud-btn--ghost', 'Start a project', this.ctas)
+    const contact = el('a', 'hero-link', 'Start a project', this.ctas)
     contact.href = '#contact'
     contact.addEventListener('click', e => {
       e.preventDefault()
@@ -161,6 +173,11 @@ export class HeroUI {
     })
   }
 
+  /** where the mark's lower edge sits (0..1 of screen height) in the settled payoff frame */
+  setCaptionTop(f: number) {
+    this.root.style.setProperty('--cap-top', `${(f * 100).toFixed(2)}%`)
+  }
+
   /** the chrome's safe bands, measured once and on resize (never per frame) */
   private measureSafe() {
     const r = this.probe.getBoundingClientRect()
@@ -199,9 +216,11 @@ export class HeroUI {
       if (db !== this.lastDb) this.meterVal.textContent = this.lastDb = db
     }
 
-    const pay = local > 0.64 && local < 0.935
-    this.payoffEyebrow.classList.toggle('is-in', pay)
+    const pay = local > T.captionA && local < T.captionB
+    this.credit.classList.toggle('is-in', pay)
+    setRise(this.creditText, pay)
     this.scrim.classList.toggle('is-in', pay)
+    this.sleeve.classList.toggle('is-in', pay)
     setRise(this.title, pay)
     this.ctas.classList.toggle('is-in', pay)
   }

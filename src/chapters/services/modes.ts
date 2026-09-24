@@ -277,12 +277,13 @@ function sampleLogo(out: Float32Array, count: number, rand: () => number) {
     out[k * 2 + 1] = y
     k++
   }
-  // logo y is up; on the plate the far edge (-z) is "up" from the camera
-  for (let i = 0; i < fill.length / 3 && k < fillN; i++) push(fill[i * 3] * LOGO_SCALE, -fill[i * 3 + 1] * LOGO_SCALE)
+  // the finale camera looks down from the -z side (index.ts MARK_*): logo x runs
+  // along world -x and logo y (up) toward the far edge, +z
+  for (let i = 0; i < fill.length / 3 && k < fillN; i++) push(-fill[i * 3] * LOGO_SCALE, fill[i * 3 + 1] * LOGO_SCALE)
   // sand banks up against the edges of the figure
   const gauss = () => (rand() + rand() + rand() - 1.5) * 0.9
   for (let i = 0; i < edgeN; i++)
-    push(edge[i * 2] * LOGO_SCALE + gauss() * 0.006, -edge[i * 2 + 1] * LOGO_SCALE + gauss() * 0.006)
+    push(-edge[i * 2] * LOGO_SCALE + gauss() * 0.006, edge[i * 2 + 1] * LOGO_SCALE + gauss() * 0.006)
   while (k < count) push((rand() * 2 - 1) * EDGE, (rand() * 2 - 1) * EDGE)
 }
 

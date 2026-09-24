@@ -4,6 +4,17 @@
   --svc-col: min(430px, 34vw);
 }
 
+/* an empty box on the safe band: the camera reads its offsetTop (hud.ts metrics) */
+.stage-services .svc-probe {
+  position: absolute;
+  top: var(--safe-top);
+  left: 0;
+  width: 1px;
+  height: 1px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* ---------------- intro ---------------- */
 .stage-services .svc-intro {
   position: absolute;
@@ -139,6 +150,7 @@
   background: none;
   border: 0;
   border-top: 1px solid var(--line-strong);
+  min-height: 26px;
   padding: 9px 0 4px;
   margin: 0;
   font-family: var(--font-mono);
@@ -317,8 +329,8 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 14px;
-    backdrop-filter: blur(14px) saturate(1.1);
     -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    backdrop-filter: blur(14px) saturate(1.1);
   }
   .stage-services .svc-head-hz {
     display: inline;
@@ -341,12 +353,16 @@
     font-size: 9.5px;
     padding: 4px 8px;
   }
+  /* 11 keys across a phone: 2px gaps keep every key >= 24px wide down to 320px */
   .stage-services .svc-keys {
     max-width: none;
+    gap: 2px;
   }
   .stage-services .svc-key {
-    padding: 7px 0 0;
+    min-height: 26px;
+    padding: 8px 0 3px;
     font-size: 9.5px;
+    letter-spacing: 0.02em;
   }
   .stage-services .svc-readout {
     display: none;
@@ -362,13 +378,27 @@
   }
 }
 
-/* short phones: drop the blurb to one clamp so the plate keeps its half */
+/* short phones: never cut the blurb; drop the tags (they repeat it) and tighten the sheet */
 @media (max-width: 767px) and (max-height: 700px) {
+  .stage-services .svc-panel {
+    gap: 10px;
+    padding: 12px 14px 8px;
+  }
+  .stage-services .svc-item {
+    gap: 8px;
+  }
+  .stage-services .svc-title {
+    font-size: clamp(1.4rem, 6.6vw, 1.9rem);
+  }
   .stage-services .svc-blurb {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .stage-services .svc-tags {
+    display: none;
+  }
+  .stage-services .svc-intro-title {
+    font-size: clamp(2.3rem, 11vw, 3.4rem);
   }
 }
 

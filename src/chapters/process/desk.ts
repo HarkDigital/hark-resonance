@@ -112,6 +112,8 @@ function grainTexture() {
 // ---------------------------------------------------------------- shaders
 
 const LED_GREEN = new THREE.Color(0, 1, 0.235)
+/** fader cap x per strip (4 channel slots + master) */
+const FADER_XS = [...L.channels.map(cx => cx + L.slotDX), L.masterX]
 const LED_WHITE = new THREE.Color(1, 0.96, 0.9)
 
 function meterMaterial() {
@@ -286,6 +288,10 @@ export class Desk {
       clearcoatRoughness: 0.03,
     })
     const bed = new THREE.MeshBasicMaterial({ color: '#050505' })
+    // InstancedMeshes get their own copies: three.js keys the program on the instancing flag per
+    // material, so sharing one with a plain Mesh would flip programs on every draw
+    const rubberInst = rubber.clone()
+    const glassInst = glass.clone()
 
     // ---- body, plinth, faceplate
     g.add(new THREE.Mesh(slab(-L.W / 2 + 0.09, -L.D / 2 + 0.09, L.W / 2 - 0.09, L.D / 2 - 0.09, 0.1, 0, L.plinthH + 0.01, 0), rubber))
@@ -377,7 +383,7 @@ export class Desk {
     // ---- meter windows (black glass strips) + LED ladders
     const meterXs = [...L.channels.map(cx => cx + L.meterDX), ...L.masterMeters]
     const winGeo = new THREE.BoxGeometry(L.meterW + 0.034, 0.004, L.meterZ1 - L.meterZ0 + 0.04)
-    const wins = new THREE.InstancedMesh(winGeo, glass, LADDERS)
+    const wins = new THREE.InstancedMesh(winGeo, glassInst, LADDERS)
     meterXs.forEach((x, i) => {
       this.m.makeTranslation(x, L.plateTop + 0.002, (L.meterZ0 + L.meterZ1) / 2)
       wins.setMatrixAt(i, this.m)
@@ -446,9 +452,9 @@ export class Desk {
     L.channels.forEach(cx => L.knobZ.forEach(z => this.knobPos.push([cx, z, 1])))
     this.knobPos.push([L.levelKnob[0], L.levelKnob[1], L.levelKnobR / L.knobR])
     const nk = this.knobPos.length
-    const skirts = new THREE.InstancedMesh(skirt, rubber, nk)
+    const skirts = new THREE.InstancedMesh(skirt, rubberInst, nk)
     this.knobCaps = new THREE.InstancedMesh(knobCapGeo, new THREE.MeshPhysicalMaterial({ color: '#c8cbcf', metalness: 1, roughness: 0.22 }), nk)
-    this.knobMarks = new THREE.InstancedMesh(knobMarkGeo, rubber, nk)
+    this.knobMarks = new THREE.InstancedMesh(knobMarkGeo, rubberInst, nk)
     this.knobPos.forEach(([x, z, sc], i) => {
       this.m.compose(this.v.set(x, L.plateTop, z), this.q.identity(), this.s.setScalar(sc))
       skirts.setMatrixAt(i, this.m)
@@ -462,7 +468,7 @@ export class Desk {
     const ledAt: [number, number][] = [
       ...L.channels.map(cx => [cx - L.stripW / 2 + 0.165, L.nameZ - 0.075] as [number, number]),
       [L.channels[3] + L.stripW / 2 + 0.2, L.nameZ - 0.075],
-      [L.logoAt[0] + 0.66, L.logoAt[1] - 0.035],
+      L.powerLed,
     ]
     ledAt.forEach(([x, z], i) => {
       this.m.makeTranslation(x, 0, z)
@@ -510,7 +516,7 @@ export class Desk {
   }
 
   update(st: DeskState, time: number) {
-    const faderXs = [...L.channels.map(cx => cx + L.slotDX), L.masterX]
+    const faderXs = FADER_XS
     for (let i = 0; i < STRIPS; i++) {
       const z = L.travelZ(st.fader[i])
       const w = i === 4 ? 1.12 : 1

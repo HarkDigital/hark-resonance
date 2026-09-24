@@ -69,7 +69,7 @@ const FinalShader = {
       float front = t * 1.25;
       float fq = (r - front) * 7.0;
       float ring = exp(-fq * fq);
-      float wave = sin(r * 48.0 - uTime * 14.0) * smoothstep(front + 0.2, front - 0.3, r);
+      float wave = sin(r * 48.0 - uTime * 14.0) * (1.0 - smoothstep(front - 0.3, front + 0.2, r));
       vec2 disp = dir * (ring * 0.05 + wave * 0.006) * t;
       uv -= disp / vec2(aspect, 1.0);
 
@@ -77,13 +77,13 @@ const FinalShader = {
       vec3 col = chroma(uv, ca);
 
       // paper wash builds toward the cut; the ring itself glints
-      col = mix(col, uPaper, smoothstep(0.55, 1.0, t) * 0.92);
+      col = mix(col, uFadeColor, smoothstep(0.55, 1.0, t) * 0.92);
       col += ring * t * 0.08;
       col = mix(col, uPaper, clamp(uFlash, 0.0, 1.0));
 
       // soft vignette (lighter on paper)
       vec2 q = vUv - 0.5;
-      float v = smoothstep(0.95, 0.2, length(q * vec2(1.0, 0.85)));
+      float v = 1.0 - smoothstep(0.2, 0.95, length(q * vec2(1.0, 0.85)));
       col *= mix(1.0, v, uVignette);
 
       // paper grain, strongest in the midtones

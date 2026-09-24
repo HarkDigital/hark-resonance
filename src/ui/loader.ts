@@ -1,7 +1,10 @@
-import { MARK_PATHS, MARK_VIEWBOX, markSvg } from './mark'
+import { CONCEPT_TAG, MARK_PATHS, MARK_VIEWBOX, WORDMARK, markSvg } from './mark'
 import { BRAND } from '../content'
-import { mountRotateGate } from './rotate'
+import { ROTATE_QUERY, mountRotateGate } from './rotate'
 import { createSwap } from './swap'
+import { holdInert, releaseInert } from './inert'
+import { holdScene, releaseScene } from './scene'
+import { storedAudio } from './sound'
 
 /*
  * Boot screen: a studio VU meter on bone paper. The Hark mark is traced in a
@@ -10,14 +13,26 @@ import { createSwap } from './swap'
  * "programme" wobble that grows as things come up), a 000→100 counter, and
  * studio status lines that rise in one after another.
  *
- * On finish() the needle kicks into the red (well, the ink) and the PEAK LED
- * lights, then a crisp circular iris opens from the centre with trailing
- * pressure rings, the same ripple the site uses for its chapter cuts.
+ * Sound is the thesis, so a first visit is asked how to listen: once loading
+ * lands on 100 the needle holds at the reference level and two buttons rise
+ * under the meter, "Play with sound" (focused; the click itself unlocks audio
+ * and the choice is remembered) and "Enter quietly" (Escape does the same).
+ * Play kicks the needle into the red and lights PEAK; quiet lets it fall to
+ * rest. Then a crisp circular iris opens from the centre with trailing
+ * pressure rings, the same ripple the site uses for its chapter cuts. Under
+ * reduced motion the choice is the same but the loader simply fades.
+ *
+ * No question (straight to the kick + iris) when a choice is already stored:
+ * a stored "on" still waits for the visitor's first gesture (see sound.ts).
+ * ?gate forces the question for demos and review; ?nointro skips the loader.
+ *
+ * While the loader is up everything behind it is inert, and while the
+ * question waits the (hidden) scene stops rendering.
  *
  * API: createLoader(root, { skip }) -> { progress(0..1), finish(): Promise<void> }
- * finish() resolves as the iris starts (so the chrome reveal overlaps it) and
- * the node removes itself once the iris is fully open. Never blocks:
- * progress is cosmetic; finish() is the authority.
+ * finish() resolves once the visitor has chosen, as the iris starts (so the
+ * chrome reveal overlaps it), and the node removes itself once the iris is
+ * fully open. progress is cosmetic; finish() is the authority.
  */
 
 const MIN_DISPLAY = 1.3 // seconds before the counter may reach 100 (lets the mark finish tracing)
@@ -30,6 +45,9 @@ const STATUS: [number, string][] = [
   [0.9, 'Setting the gain'],
 ]
 const IRIS_MS = 1050
+const GATE_STATUS = 'Ready <b>·</b> best with sound'
+
+type Choice = 'sound' | 'quiet'
 
 // VU scale: position is linear in voltage, from −20 dB (0.1) to +3 dB (1.413)
 const SWEEP = 46 // degrees either side of vertical
@@ -110,20 +128,32 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
   }
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const ask = new URLSearchParams(location.search).has('gate') || storedAudio() === null
   const markPaths = [...MARK_PATHS.loops, MARK_PATHS.diamond]
     .map((d, i, all) => `<path class="${i === all.length - 1 ? 'ld-mk-diamond' : 'ld-mk-loop'}" style="--d:${i}" d="${d}" pathLength="1"/>`)
     .join('')
 
+  const gate = ask
+    ? `
+      <div class="ld-gate" role="group" aria-label="How would you like to listen?" hidden>
+        <div class="ld-gate-btns">
+          <button class="ld-btn ld-btn--play" type="button" data-sound-toggle data-choice="sound"><span class="ld-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Play with sound</span></button>
+          <button class="ld-btn ld-btn--quiet" type="button" data-sound-toggle data-choice="quiet"><span>Enter quietly</span></button>
+        </div>
+        <p class="ld-gate-note">Switch any time <b aria-hidden="true">·</b> bottom left</p>
+      </div>`
+    : ''
+
   root.innerHTML = `
   <div class="ld" data-phase="boot">
     <p class="sr-only" role="status">Loading ${BRAND.name}</p>
-    <div class="ld-corner ld-corner--tl" aria-hidden="true"><span class="ld-brand-mark">${markSvg('ld-brand-svg')}</span><span>Hark Digital <em>Resonance</em></span></div>
+    <div class="ld-corner ld-corner--tl" aria-hidden="true"><span class="ld-brand-mark">${markSvg('ld-brand-svg')}</span><span class="ld-brand-text"><span class="ld-word">${WORDMARK}</span><span class="ld-sub">${CONCEPT_TAG}</span></span></div>
     <div class="ld-corner ld-corner--tr" aria-hidden="true">Session 01 <b>·</b> Take 01</div>
     <div class="ld-corner ld-corner--bl" aria-hidden="true">${BRAND.locale}</div>
     <div class="ld-corner ld-corner--br" aria-hidden="true"><em>Hark</em> means listen.</div>
 
-    <div class="ld-center" aria-hidden="true">
-      <div class="ld-bezel">
+    <div class="ld-center">
+      <div class="ld-bezel" aria-hidden="true">
         <div class="ld-face">
           <svg class="ld-scale" viewBox="0 0 320 190" preserveAspectRatio="xMidYMid meet">
             <g class="ld-scale-g">${scaleSvg()}</g>
@@ -136,11 +166,11 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
           <span class="ld-glass"></span>
         </div>
       </div>
-      <div class="ld-readout">
+      <div class="ld-readout" aria-hidden="true">
         <span class="ld-led"></span>
         <span class="ld-status"></span>
         <span class="ld-count"><span class="ld-count-n">000</span></span>
-      </div>
+      </div>${gate}
     </div>
   </div>
   <div class="ld-rings" aria-hidden="true"><i></i><i></i><i></i></div>`
@@ -151,6 +181,16 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
   const ringsEl = root.querySelector<HTMLElement>('.ld-rings')!
   const rings = [...ringsEl.querySelectorAll<HTMLElement>('i')]
   const status = createSwap(root.querySelector<HTMLElement>('.ld-status')!)
+  const live = root.querySelector<HTMLElement>('[role="status"]')!
+  const gateEl = root.querySelector<HTMLElement>('.ld-gate')
+  const playBtn = root.querySelector<HTMLButtonElement>('.ld-btn--play')
+
+  // nothing behind the loader is reachable while it is up (Tab would otherwise
+  // walk into links hidden under the meter and even land the story)
+  holdInert('loader', [
+    ...['chrome', 'stages', 'track'].map(id => document.getElementById(id)),
+    document.querySelector<HTMLElement>('.skip-link'),
+  ])
 
   const t0 = performance.now()
   let target = 0
@@ -159,6 +199,7 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
   let statusAt = -1
   let finishing = false
   let kick = false
+  let rest = false
   let slow = false
   let raf = 0
   let last = t0
@@ -202,6 +243,7 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
     // the needle: signal level follows progress, with a programme wobble on top
     let aim: number
     if (kick) aim = vuAngle(2.6)
+    else if (rest) aim = -SWEEP - 2
     else {
       const lvl = shown
       const db = -20 + lvl * 19.2
@@ -248,6 +290,54 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
       requestAnimationFrame(step)
     })
 
+  /** Show the two buttons and wait for the visitor's choice. */
+  const askForSound = () =>
+    new Promise<Choice>(resolve => {
+      if (!gateEl || !playBtn) return resolve('quiet')
+      const rotate = matchMedia(ROTATE_QUERY)
+      let picked = false
+      const pick = (c: Choice) => {
+        if (picked) return
+        picked = true
+        // this runs inside the click / key event, so audio may start right here
+        window.dispatchEvent(new CustomEvent('hark:audio', { detail: { on: c === 'sound' } }))
+        gateEl.classList.add('is-picked')
+        gateEl.dataset.picked = c
+        gateEl.querySelectorAll('button').forEach(b => (b.disabled = b.dataset.choice !== c))
+        window.removeEventListener('keydown', onKey)
+        rotate.removeEventListener?.('change', onRotate)
+        releaseScene('gate')
+        resolve(c)
+      }
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          pick('quiet')
+        }
+      }
+      // a phone turned upright again gets its focus back on the question
+      const onRotate = () => {
+        if (!rotate.matches && !picked) playBtn.focus({ preventScroll: true })
+      }
+      gateEl.addEventListener('click', e => {
+        const b = (e.target as Element).closest<HTMLButtonElement>('[data-choice]')
+        if (b) pick(b.dataset.choice as Choice)
+      })
+      window.addEventListener('keydown', onKey)
+      rotate.addEventListener?.('change', onRotate)
+
+      gateEl.hidden = false
+      // lift the meter by half the question's height so the whole stack stays centred
+      wrap.style.setProperty('--ld-lift', `${Math.round((gateEl.offsetHeight + 26) / 2)}px`)
+      void gateEl.offsetWidth
+      wrap.dataset.phase = 'gate'
+      status.set(GATE_STATUS)
+      live.textContent = 'Ready'
+      playBtn.focus({ preventScroll: true })
+      // the scene is fully hidden while we wait: stop rendering it
+      holdScene('gate')
+    })
+
   let done: Promise<void> | null = null
 
   return {
@@ -266,17 +356,44 @@ export function createLoader(root: HTMLElement, { skip = false } = {}) {
         while (shown < 1 && performance.now() - land < 900) await wait(30)
         shown = 1
         render(performance.now())
-        status.set('Rolling tape')
-        kick = true
-        wrap.dataset.phase = 'peak'
-        await wait(reduced ? 150 : 420)
-        wrap.dataset.phase = 'open'
+
+        // a returning visitor's remembered choice plays out the same way, unasked
+        let choice: Choice = storedAudio() === false ? 'quiet' : 'sound'
+        if (gateEl) {
+          // the needle holds at the reference level while the visitor decides
+          await wait(reduced ? 0 : 260)
+          choice = await askForSound()
+        }
+
+        if (choice === 'sound') {
+          status.set('Rolling tape')
+          kick = true
+          wrap.dataset.phase = 'peak'
+        } else {
+          status.set('Rolling tape <b>·</b> quietly')
+          rest = true
+          wrap.dataset.phase = 'rest'
+        }
+        await wait(reduced ? 150 : gateEl ? 520 : 420)
+
+        // the page is back in reach as the scene is revealed
+        releaseInert('loader')
+        root.style.pointerEvents = 'none'
+        live.textContent = ''
         if (reduced) {
-          await wait(320)
-          cancelAnimationFrame(raf)
-          root.remove()
+          // no iris: a plain crossfade (WAAPI, so the global reduced-motion
+          // transition kill in base.css cannot turn it into a hard cut)
+          const fade = wrap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease', fill: 'forwards' })
+          fade.finished
+            .catch(() => {})
+            .then(() => {
+              cancelAnimationFrame(raf)
+              root.remove()
+            })
+          await wait(160)
           return
         }
+        wrap.dataset.phase = 'open'
         const opened = iris()
         // resolve while the iris is opening so the chrome reveal overlaps it
         opened.then(() => {

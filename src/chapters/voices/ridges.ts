@@ -18,6 +18,9 @@ import { rng } from '../../core/math'
  * mirror of the height function so HUD elements can ride the lines exactly.
  */
 
+/** Groove radius of the back (innermost) and front (outermost) rows: a 12" record, label and all. */
+export const GROOVE_R = [1.05, 3.2] as const
+
 export interface Voice {
   text: string
   seed: number
@@ -89,7 +92,7 @@ function bakeVoice(out: Float32Array, rows: number, samples: number, v: Voice | 
         const w = p[Math.min(p.length - 1, Math.floor(u * p.length))]
         const wl = Math.min(1, w.replace(/[^a-z]/gi, '').length / 8)
         // attack fast, decay slow — the way a spoken phrase lands
-        const env = Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.25 + 0.04)), 0.6)
+        const env = Math.pow(Math.max(0, Math.sin(Math.PI * Math.min(1, u * 1.25 + 0.04))), 0.6)
         amp[row] = Math.max(amp[row], loud * env * (0.55 + 0.45 * wl) * (0.85 + 0.3 * r()))
         letters[row] = w.toLowerCase()
       }
@@ -189,6 +192,8 @@ uniform float uA, uB, uMorphT, uMorphSpan, uCalm;
 uniform float uTime, uFlow, uIn, uGain;
 uniform float uHalfW, uDepth, uDepthScale, uHeight, uWScale;
 uniform vec4 uPoke; // x (-1..1), rowN, strength, unused
+uniform float uGroove; // 1 = every row bent into a record groove, 0 = straight
+uniform vec2 uGrooveR; // groove radius of the back row, the front row
 
 float prof(float layer, float x, float row) {
   float u = ((x * 0.5 + 0.5) * (uSamples - 1.0) + 0.5) / uSamples;
@@ -209,7 +214,9 @@ float rowGain(float rowN) {
   // in-beat: rows spring up front → back as the chapter arrives
   float t = clamp(uIn * 1.7 - rowN * 0.7, 0.0, 1.0);
   float c1 = 1.70158, c3 = c1 + 1.0;
-  float back = 1.0 + c3 * pow(t - 1.0, 3.0) + c1 * pow(t - 1.0, 2.0);
+  // easeOutBack, written out: never pow() a negative base
+  float u = t - 1.0;
+  float back = 1.0 + c3 * u * u * u + c1 * u * u;
   return back * uGain;
 }
 
@@ -221,7 +228,8 @@ float heightAt(float x, float row) {
   float s = uCalm > 0.5 ? smoothstep(0.0, 0.9, tr) : spring(tr);
   float h = mix(a, b, s);
   // the pressure front passing through the row as it reshapes
-  float pf = uCalm > 0.5 ? 0.0 : exp(-pow((tr - 0.1) / 0.11, 2.0));
+  float pq = (tr - 0.1) / 0.11;
+  float pf = uCalm > 0.5 ? 0.0 : exp(-pq * pq);
   h += pf * 0.2 * exp(-x * x * 7.0);
   // live: a slow pressure wave rolling front → back + a fine flutter
   h *= 1.0 + uFlow * (0.16 * sin(row * 0.42 - uTime * 1.7) + 0.05 * sin(uTime * 6.3 + row * 2.1));
@@ -236,7 +244,22 @@ float heightAt(float x, float row) {
 
 vec3 plotPos(float x, float row, float h) {
   float rowN = row / max(uRows - 1.0, 1.0);
-  return vec3(x * uHalfW * uWScale, h * uHeight, uDepth * 0.5 - rowN * uDepth * uDepthScale);
+  float z = uDepth * 0.5 - rowN * uDepth * uDepthScale;
+  vec3 p = vec3(x * uHalfW * uWScale, h * uHeight, z);
+  if (uGroove > 0.0005) {
+    // the in-beat: each row is a groove of the record, a full ring around the
+    // plot's centre (front row outermost), that unrolls into its straight
+    // line as uGroove -> 0: curvature g/R, arc length pi*R -> the row width,
+    // the arc's midpoint gliding from the ring's front to the row's own z
+    float g = uGroove;
+    float R = mix(uGrooveR.y, uGrooveR.x, rowN);
+    float k = g / R;
+    float a = x * mix(uHalfW * uWScale, 3.14159265 * R, g) * k;
+    float s = sin(a * 0.5);
+    p.x = sin(a) / k;
+    p.z = mix(z, R, g) - 2.0 * s * s / k;
+  }
+  return p;
 }
 `
 
@@ -252,6 +275,7 @@ varying float vCore;
 varying float vRowN;
 varying float vX;
 varying float vFront;
+varying float vGap;
 
 void main() {
   float dx = 2.0 / (uSamples - 1.0);
@@ -272,7 +296,11 @@ void main() {
   vec2 n = vec2(-dir.y, dir.x);
   vRowN = aRow / max(uRows - 1.0, 1.0);
   float trow = uMorphT - vRowN * uMorphSpan;
-  vFront = uCalm > 0.5 ? 0.0 : exp(-pow((trow - 0.1) / 0.13, 2.0));
+  float fq = (trow - 0.1) / 0.13;
+  vFront = uCalm > 0.5 ? 0.0 : exp(-fq * fq);
+  // the record's eight cuts: the first row of every band after the first is
+  // a quiet track gap (only drawn while the rows are grooves)
+  vGap = aRow > 0.5 && floor(aRow * 8.0 / uRows + 1e-3) != floor((aRow - 1.0) * 8.0 / uRows + 1e-3) ? 1.0 : 0.0;
   float core = uLineW * mix(1.0, 0.62, vRowN) * 0.5;
   float half_ = core + 1.0;
   vCore = core;
@@ -288,17 +316,26 @@ uniform vec3 uColor;
 uniform float uBright;
 uniform float uFadeBack;
 uniform float uSolo;
+uniform float uGroove;
 varying float vDist;
 varying float vCore;
 varying float vRowN;
 varying float vX;
 varying float vFront;
+varying float vGap;
 void main() {
   // analytic coverage: a box of half-width vCore against a 1px pixel
   float d = abs(vDist);
   float cov = clamp(vCore + 0.5 - d, 0.0, 1.0) * min(1.0, vCore * 2.0);
-  float ends = 1.0 - smoothstep(0.8, 1.0, abs(vX));
-  float depth = mix(1.0, uFadeBack, smoothstep(0.15, 1.0, vRowN));
+  // grooves are closed rings; straight rows fade out at their flat ends
+  float ends = mix(1.0 - smoothstep(0.8, 1.0, abs(vX)), 1.0, uGroove);
+  float depth = mix(mix(1.0, uFadeBack, smoothstep(0.15, 1.0, vRowN)), 0.72 - 0.3 * vRowN, uGroove);
+  // the record: a two-lobed vinyl sheen that stays put in the light, and
+  // eight cuts separated by quiet track gaps
+  float c = abs(cos(vX * 3.14159265 - 0.785398));
+  float c2 = c * c;
+  float c4 = c2 * c2;
+  depth *= mix(1.0, (0.4 + 1.1 * c4 * c4) * (1.0 - 0.8 * vGap), uGroove);
   // the out-beat: rows peel away back → front as the stack folds into one line
   float cut = 1.04 - uSolo * 1.01;
   float solo = 1.0 - smoothstep(cut - 0.03, cut, vRowN);
@@ -321,6 +358,8 @@ void main() {
   vec3 p = plotPos(aX, aRow, heightAt(aX, aRow));
   if (aSide > 0.5) p.y = uBase;
   p.z -= uEps;
+  // flat grooves seen from above: drop the curtain a hair below its line
+  p.y -= uEps * 3.0 * uGroove;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
 `
@@ -354,9 +393,10 @@ export class Led {
         varying vec2 vUv;
         void main() {
           float d = length(vUv - 0.5) * 2.0;
-          float core = smoothstep(0.34, 0.2, d);
+          // (smoothstep edges kept ascending: reversed edges are undefined in GLSL ES)
+          float core = 1.0 - smoothstep(0.2, 0.34, d);
           float halo = exp(-d * d * 9.0) * 0.55;
-          vec3 col = vec3(0.0, 1.0, 0.52) * (core * 3.2 + halo) + vec3(0.8, 1.0, 0.9) * smoothstep(0.16, 0.0, d) * 2.0;
+          vec3 col = vec3(0.0, 1.0, 0.52) * (core * 3.2 + halo) + vec3(0.8, 1.0, 0.9) * (1.0 - smoothstep(0.0, 0.16, d)) * 2.0;
           float a = clamp(core + halo, 0.0, 1.0) * uIntensity;
           if (a < 0.004) discard;
           gl_FragColor = vec4(col * uIntensity, a);
@@ -434,6 +474,8 @@ export class Ridges {
       uFadeBack: { value: 0.4 },
       uSolo: { value: 0 },
       uPoke: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uGroove: { value: 0 },
+      uGrooveR: { value: new THREE.Vector2(GROOVE_R[0], GROOVE_R[1]) },
       uBase: { value: -0.35 },
       uEps: { value: 0.012 },
     }
@@ -544,7 +586,8 @@ export class Ridges {
       s = 1 - Math.exp(-z * w * tr) * (Math.cos(wd * tr) + ((z * w) / wd) * Math.sin(wd * tr))
     }
     let h = a + (b - a) * s
-    const pf = u.uCalm.value > 0.5 ? 0 : Math.exp(-Math.pow((tr - 0.1) / 0.11, 2))
+    const pq = (tr - 0.1) / 0.11
+    const pf = u.uCalm.value > 0.5 ? 0 : Math.exp(-pq * pq)
     h += pf * 0.2 * Math.exp(-x * x * 7)
     const t = u.uTime.value
     const fl = u.uFlow.value
@@ -559,19 +602,41 @@ export class Ridges {
     }
     const tt = Math.min(1, Math.max(0, u.uIn.value * 1.7 - rowN * 0.7))
     const c1 = 1.70158
-    const back = 1 + (c1 + 1) * Math.pow(tt - 1, 3) + c1 * Math.pow(tt - 1, 2)
+    const q = tt - 1
+    const back = 1 + (c1 + 1) * q * q * q + c1 * q * q
     return h * back * u.uGain.value
+  }
+
+  /**
+   * CPU mirror of plotPos: local-space position of plot coordinate x on the
+   * row at rowN (0 front .. 1 back) with height h, for a given groove amount,
+   * depth scale and width scale (defaults: the current uniforms).
+   */
+  plotPoint(
+    x: number,
+    rowN: number,
+    h: number,
+    out: THREE.Vector3,
+    g: number = this.uniforms.uGroove.value,
+    ds: number = this.uniforms.uDepthScale.value,
+    ws: number = this.uniforms.uWScale.value,
+  ) {
+    const z = this.depth * 0.5 - rowN * this.depth * ds
+    out.set(x * this.halfW * ws, h * this.heightScale, z)
+    if (g > 0.0005) {
+      const R = GROOVE_R[1] + (GROOVE_R[0] - GROOVE_R[1]) * rowN
+      const k = g / R
+      const a = x * (this.halfW * ws + (Math.PI * R - this.halfW * ws) * g) * k
+      const s = Math.sin(a * 0.5)
+      out.x = Math.sin(a) / k
+      out.z = z + (R - z) * g - (2 * s * s) / k
+    }
+    return out
   }
 
   /** Local-space position of a point on a row (0 = front). */
   pointAt(x: number, row: number, out: THREE.Vector3) {
-    const u = this.uniforms
-    const rowN = row / Math.max(this.rows - 1, 1)
-    return out.set(
-      x * this.halfW * u.uWScale.value,
-      this.heightAt(x, row) * this.heightScale,
-      this.depth * 0.5 - rowN * this.depth * u.uDepthScale.value,
-    )
+    return this.plotPoint(x, row / Math.max(this.rows - 1, 1), this.heightAt(x, row), out)
   }
 
   /** Front→back extent in local z for the current depth scale. */

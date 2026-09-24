@@ -36,6 +36,16 @@ function parseMark() {
 export const MARK_PATHS = parseMark()
 
 /**
+ * The real wordmark, "Hark.Digital" (BRAND.short): the dot is a tiny signal
+ * green LED. The period stays in the markup (clipped) so copy/paste and
+ * find-in-page still read "Hark.Digital". Styled by the .wm rules in ui.css.
+ */
+export const WORDMARK = `<span class="wm"><span class="wm-a">Hark</span><span class="wm-dot">.</span><span class="wm-b">Digital</span></span>`
+
+/** This site is a concept direction, not a rebrand: a small tag, never part of the name. */
+export const CONCEPT_TAG = `<span class="wm-tag"><span class="wm-tag-k">Concept</span><b aria-hidden="true">·</b><em>Resonance</em></span>`
+
+/**
  * Inline SVG markup for the mark. Loops fill with currentColor; the diamond
  * gets its own class so CSS can light it in signal green.
  */

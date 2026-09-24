@@ -5,6 +5,8 @@ import { Chamber } from './chamber'
 import { Mark } from './mark'
 import { HeroUI } from './ui'
 import {
+  ECHO_LIFE,
+  ECHO_SPEED,
   FIXTURES_Z,
   IDLE_RATE,
   MARK_POS,
@@ -26,8 +28,10 @@ import './hero.css'
  *                       light clunk on in sequence after the loader hands over
  *   0.12–0.60  SOUND    the LED pulses and pressure fronts roll out through
  *                       the foam: wedges compress, tilt and spring back
- *   0.60–0.92  PAYOFF   the room settles; the camera cranes back and down;
- *                       "Make the internet listen."
+ *   0.60–0.92  PAYOFF   the room settles; the camera squares up on the mark,
+ *                       centre-high, like a record sleeve; one last echo
+ *                       front leaves the LED and carries the liner credit
+ *                       "Make the internet listen." in beneath it
  *   0.92–1.00  OUT      one big front rushes at the camera → ripple cut
  */
 
@@ -43,19 +47,22 @@ interface Key {
   /** portrait framing offsets */
   px: number
   py: number
+  /** portrait distance factor (phones hold the mark a little closer) */
+  pz: number
   fov: number
 }
 type Prop = Exclude<keyof Key, 't'>
 
 // prettier-ignore
 const KEYS: Key[] = [
-  { t: 0.0,  az: 0.0,   el: -0.035, dist: 10.6, tx: 0,     ty: -0.05, px: 0,    py: -0.55, fov: 38 },
-  { t: 0.12, az: 0.0,   el: -0.02,  dist: 9.2,  tx: 0,     ty: -0.05, px: 0,    py: -0.5,  fov: 38 },
-  { t: 0.3,  az: 0.3,   el: 0.52,   dist: 8.6,  tx: 0,     ty: -1.6,  px: 0,    py: -1.7,  fov: 44 },
-  { t: 0.46, az: 0.6,   el: 0.3,    dist: 8.0,  tx: 0,     ty: -0.8,  px: 0,    py: -0.9,  fov: 42 },
-  { t: 0.62, az: 0.05,  el: 0.06,   dist: 9.4,  tx: -0.8,  ty: 0,     px: 0,    py: -0.7,  fov: 40 },
-  { t: 0.76, az: -0.3,  el: 0.03,   dist: 9.6,  tx: -1.75, ty: 0.05,  px: 0,    py: -1.15, fov: 38 },
-  { t: 0.92, az: -0.34, el: 0.035,  dist: 9.4,  tx: -1.8,  ty: 0.05,  px: 0,    py: -1.2,  fov: 38 },
+  { t: 0.0,  az: 0.0,   el: -0.035, dist: 10.6, tx: 0, ty: -0.05, px: 0, py: -0.55, pz: 1,    fov: 38 },
+  { t: 0.12, az: 0.0,   el: -0.02,  dist: 9.2,  tx: 0, ty: -0.05, px: 0, py: -0.5,  pz: 1,    fov: 38 },
+  { t: 0.3,  az: 0.3,   el: 0.52,   dist: 8.6,  tx: 0, ty: -1.6,  px: 0, py: -1.7,  pz: 1,    fov: 44 },
+  { t: 0.46, az: 0.6,   el: 0.3,    dist: 8.0,  tx: 0, ty: -0.8,  px: 0, py: -0.9,  pz: 1,    fov: 42 },
+  // payoff: square up on the mark and hold it centre-high, the caption beneath (an album cover)
+  { t: 0.62, az: 0.14,  el: 0.18,   dist: 9.2,  tx: 0, ty: -0.66, px: 0, py: -1.1,  pz: 0.95, fov: 40 },
+  { t: 0.76, az: 0.0,   el: 0.15,   dist: 9.4,  tx: 0, ty: -0.84, px: 0, py: -1.3,  pz: 0.86, fov: 38 },
+  { t: 0.92, az: -0.03, el: 0.15,   dist: 9.15, tx: 0, ty: -0.84, px: 0, py: -1.3,  pz: 0.86, fov: 38 },
 ]
 
 /** Smooth monotone cubic through the keys (no stops at each key). */
@@ -84,6 +91,23 @@ function sample(t: number, prop: Prop): number {
   const s2 = s * s
   const s3 = s2 * s
   return (2 * s3 - 3 * s2 + 1) * k0[prop] + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * k1[prop] + (s3 - s2) * m1
+}
+
+/** 0 landscape .. 1 tall portrait: blends the portrait framing in */
+const portraitQ = (aspect: number) => clamp((1.3 - aspect) / 0.75)
+
+/**
+ * Where the settled payoff frame puts the mark's lower edge, as a fraction of
+ * screen height from the top — the caption hangs beneath it at any aspect.
+ */
+function markFoot(aspect: number, markHalf: number) {
+  const q = portraitQ(aspect)
+  const s = 0.84
+  const halfFov = ((sample(s, 'fov') + 16 * q) * Math.PI) / 360
+  const dist = sample(s, 'dist') * lerp(1, sample(s, 'pz'), q) * (1 - 0.04 * q)
+  const oy = lerp(sample(s, 'ty'), sample(s, 'py'), q)
+  const ndc = (-oy - markHalf) / (dist * Math.tan(halfFov))
+  return 0.5 - ndc * 0.5
 }
 
 /** Light bank i, `t` seconds after the reveal: off, then a hard clunk on with a small settle. */
@@ -117,8 +141,14 @@ export default function create(): Chapter {
   let warm = 0
   let toneOn = false
   let camAz = 0
+  /** when the payoff's echo front left the LED (performance clock), and whether the caption was called last frame */
+  let echoAt = -1
+  let captionWas = false
+  /** the mark's half-height in world units (its yaw never changes it) */
+  let markHalf = 1.1
+  let footAspect = 0
 
-  const wave: WaveState = { phase: 0, local: 0, amp: 0.9, out: 0 }
+  const wave: WaveState = { phase: 0, local: 0, amp: 0.9, out: 0, echo: 0, echoAmp: 0 }
   const anchorWorld: THREE.Vector3[] = []
   const anchorPress: number[] = []
   const tmpD = new THREE.Vector3()
@@ -144,6 +174,9 @@ export default function create(): Chapter {
       // centre the LED on the pivot so the mark turns around its heart
       mark.root.position.set(-mark.center.x, -mark.center.y, 0)
       markRoot.add(mark.root)
+      mark.chrome.geometry.computeBoundingBox()
+      const bb = mark.chrome.geometry.boundingBox!
+      markHalf = ((bb.max.y - bb.min.y) * MARK_SCALE) / 2
       await yieldToBrowser()
       mark.attachEnv(ctx.renderer, ctx.mobile)
 
@@ -193,9 +226,21 @@ export default function create(): Chapter {
       u.uAmp.value = wave.amp
       u.uOut.value = wave.out
 
+      // ---- the echo: one last front, sent out as the caption is called in ----
+      const caption = local > T.captionA && local < T.captionB
+      if (caption && !captionWas && !warming && (echoAt < 0 || clock - echoAt > ECHO_LIFE * 0.6)) echoAt = clock
+      captionWas = caption
+      const age = echoAt < 0 ? 99 : clock - echoAt
+      const echoLive = age < ECHO_LIFE
+      wave.echo = age * ECHO_SPEED
+      wave.echoAmp = echoLive ? (reduced ? 0.35 : 0.7) * (1 - smoothstep(ECHO_LIFE - 0.5, ECHO_LIFE, age)) : 0
+      u.uEcho.value = wave.echo
+      u.uEchoAmp.value = wave.echoAmp
+      const echoK = echoLive ? Math.exp(-age * 4.5) : 0
+
       const env = envAt(local)
       const f = phase - Math.floor(phase)
-      const kick = env * Math.exp(-f * 5)
+      const kick = env * Math.exp(-f * 5) + echoK * 0.8
 
       // ---- the mark ----
       const bob = Math.sin(t * 0.55) * 0.045 * motion
@@ -205,7 +250,7 @@ export default function create(): Chapter {
       markRoot.rotation.set(Math.sin(t * 0.27) * 0.03 * motion - out * 0.2, yaw, Math.sin(t * 0.23) * 0.015 * motion)
       markRoot.scale.setScalar(MARK_SCALE * (1 + kick * 0.025 + outK * 0.05))
       mark.uniforms.uMPhase.value = phase
-      mark.uniforms.uMAmp.value = (env * 0.0095 + outK * 0.012) * (reduced ? 0.5 : 1)
+      mark.uniforms.uMAmp.value = (env * 0.0095 + outK * 0.012 + echoK * 0.008) * (reduced ? 0.5 : 1)
       mark.uniforms.uMIdle.value = 0.0065 * (reduced ? 0.4 : 1)
       mark.uniforms.uMTime.value = t
       // at rest the diamond sits just under the bloom threshold, so its halo breathes in and out
@@ -231,14 +276,19 @@ export default function create(): Chapter {
       sp.envIntensity = 0.7
 
       // ---- sound hook: a low sine that swells with each pulse ----
-      const sounding = env > 0.01 || out > 0
+      const sounding = env > 0.01 || out > 0 || echoK > 0.01
       if (sounding || toneOn) {
-        const level = sounding ? clamp(0.12 * env * (0.4 + 0.6 * Math.exp(-f * 3)) + out * 0.2) : 0
+        const level = sounding ? clamp(0.12 * env * (0.4 + 0.6 * Math.exp(-f * 3)) + out * 0.2 + echoK * 0.1) : 0
         window.dispatchEvent(new CustomEvent('hark:tone', { detail: { hz: 110, level } }))
         toneOn = sounding
       }
 
       // ---- DOM ----
+      const aspect = frame.width / Math.max(1, frame.height)
+      if (aspect !== footAspect) {
+        footAspect = aspect
+        ui.setCaptionTop(markFoot(aspect, markHalf))
+      }
       const soundOn = local > 0.17 && local < 0.56
       // the meter reads the pressure arriving a few metres out
       const level = clamp(Math.abs(pressure(wave, 2.5)) * 0.95 + kick * 0.2)
@@ -271,12 +321,12 @@ export default function create(): Chapter {
 
     camera(local: number, frame: Frame, out: CameraPose) {
       const aspect = frame.width / Math.max(1, frame.height)
-      const q = clamp((1.3 - aspect) / 0.75)
+      const q = portraitQ(aspect)
       const tl = Math.min(local, T.payoffB)
       const idle = reduced ? 0 : 1
       const az = sample(tl, 'az') + Math.sin(frame.time * 0.11) * 0.01 * idle
       const el = sample(tl, 'el') + Math.sin(frame.time * 0.09) * 0.006 * idle
-      const dist = sample(tl, 'dist') * (1 - 0.04 * q)
+      const dist = sample(tl, 'dist') * lerp(1, sample(tl, 'pz'), q) * (1 - 0.04 * q)
       const fov = sample(tl, 'fov') + 16 * q
       // landscape offsets are authored at 16:10; narrower screens pull the subject in
       const ox = lerp(sample(tl, 'tx') * Math.min(1, aspect / 1.6), sample(tl, 'px'), q)

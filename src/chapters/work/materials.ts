@@ -144,6 +144,12 @@ export function sleeveMaterial(
         /* glsl */ `
         vec2 fuv = vec2(vSLocal.x + 0.5, vSLocal.y);
         wkFace = vSNormal.z;
+        // every derivative up front, in uniform control flow (before the hole's
+        // discard and the per-face branches); the samples below take explicit
+        // gradients so no GPU has to guess them inside a divergent branch
+        vec2 fdx = dFdx(fuv);
+        vec2 fdy = dFdy(fuv);
+        float fw = (abs(fdx.x) + abs(fdy.x) + abs(fdx.y) + abs(fdy.y)) * 520.0;
         float ink = uInk;
         float seed = uSeed;
         vec3 edgeCol = uEdge;
@@ -157,14 +163,14 @@ export function sleeveMaterial(
         if (wkFace > 0.5) {
           #ifdef WK_ATLAS
             vec2 cell = vec2(mod(vCell, 4.0), floor(vCell / 4.0 + 0.001));
-            col = texture2D(map, (vec2(cell.x, 3.0 - cell.y) + fuv) / 4.0).rgb;
+            col = textureGrad(map, (vec2(cell.x, 3.0 - cell.y) + fuv) / 4.0, fdx * 0.25, fdy * 0.25).rgb;
           #else
-            col = texture2D(map, vec2(fuv.x * 0.5, fuv.y)).rgb;
+            col = textureGrad(map, vec2(fuv.x * 0.5, fuv.y), fdx * vec2(0.5, 1.0), fdy * vec2(0.5, 1.0)).rgb;
           #endif
           #ifdef WK_SHOT
             vec2 iuv = (fuv - uImg.xy) / uImg.zw;
             if (uShotMix > 0.001 && iuv.x >= 0.0 && iuv.y >= 0.0 && iuv.x <= 1.0 && iuv.y <= 1.0) {
-              vec3 img = texture2D(uShot, iuv).rgb;
+              vec3 img = textureGrad(uShot, iuv, fdx / uImg.zw, fdy / uImg.zw).rgb;
               float l = dot(img, vec3(0.2126, 0.7152, 0.0722));
               img = mix(vec3(l), img, 0.9) * 0.94 + 0.012;
               // ink on paper: whites take the stock's tone; on black board it's a tipped-on print
@@ -175,16 +181,15 @@ export function sleeveMaterial(
         } else if (wkFace < -0.5) {
           #ifdef WK_ATLAS
             vec2 cellB = vec2(mod(uBackCell, 4.0), floor(uBackCell / 4.0 + 0.001));
-            col = texture2D(map, (vec2(cellB.x, 3.0 - cellB.y) + vec2(1.0 - fuv.x, fuv.y)) / 4.0).rgb;
+            col = textureGrad(map, (vec2(cellB.x, 3.0 - cellB.y) + vec2(1.0 - fuv.x, fuv.y)) / 4.0, fdx * vec2(-0.25, 0.25), fdy * vec2(-0.25, 0.25)).rgb;
           #else
-            col = texture2D(map, vec2(0.5 + (1.0 - fuv.x) * 0.5, fuv.y)).rgb;
+            col = textureGrad(map, vec2(0.5 + (1.0 - fuv.x) * 0.5, fuv.y), fdx * vec2(-0.5, 1.0), fdy * vec2(-0.5, 1.0)).rgb;
           #endif
         } else {
           col = edgeCol * (0.92 + 0.08 * wkN(vSLocal.xy * vec2(600.0, 600.0)));
         }
         if (abs(wkFace) > 0.5) {
-          // board grain + fibres, faded out before they alias
-          float fw = fwidth(fuv.x * 520.0) + fwidth(fuv.y * 520.0);
+          // board grain + fibres, faded out before they alias (fw: hoisted above)
           float grain = (wkN(fuv * 520.0 + seed) - 0.5) * (1.0 - smoothstep(0.5, 1.4, fw));
           float fib = wkN(fuv * vec2(46.0, 380.0) + seed * 3.1) - 0.5;
           col *= 1.0 + grain * 0.075 + fib * 0.035 * (1.0 - smoothstep(0.8, 2.0, fw));
@@ -226,6 +231,8 @@ export interface RecordUniforms {
   uL1: { value: THREE.Vector3 }
   uL2: { value: THREE.Vector3 }
   uSpec: { value: number }
+  /** weight of the broad groove sheen (the sharp glints stay) */
+  uSheen: { value: number }
   uSeed: { value: number }
 }
 
@@ -242,6 +249,7 @@ export function recordMaterial(label: THREE.Texture, seed = 0) {
     uL1: { value: new THREE.Vector3(0, 0, 1) },
     uL2: { value: new THREE.Vector3(0, 0, 1) },
     uSpec: { value: 1 },
+    uSheen: { value: 1 },
     uSeed: { value: seed },
   }
   const m = new THREE.MeshStandardMaterial({ color: 0x0c0c0d, roughness: 0.34, metalness: 0 })
@@ -272,31 +280,37 @@ export function recordMaterial(label: THREE.Texture, seed = 0) {
         varying vec3 vRadV;
         varying float vFaceZ;
         uniform sampler2D uLabel;
-        uniform float uBlur, uSpec, uSeed;
+        uniform float uBlur, uSpec, uSheen, uSeed;
         uniform vec3 uL1, uL2;
         float wkAniso = 0.0;
         float wkRough = 0.34;
         float wkGap = 0.0;
-        float wkBand = 1.0;`,
+        float wkBand = 1.0;
+        float wkFineW = 0.0;`,
       )
       .replace(
         '#include <map_fragment>',
         /* glsl */ `
         float r = length(vRec);
         float face = step(0.55, abs(vFaceZ));
+        // derivatives in uniform control flow; the label taps use explicit gradients
+        vec2 luv = vRec / ${(2 * LABEL_R).toFixed(4)};
+        luv.x *= vFaceZ < 0.0 ? -1.0 : 1.0;
+        vec2 ldx = dFdx(luv);
+        vec2 ldy = dFdy(luv);
+        wkFineW = fwidth(r * 2400.0);
         vec3 base = vec3(0.0085);
         if (face > 0.5 && r < ${LABEL_R.toFixed(4)}) {
-          vec2 luv = vRec / ${(2 * LABEL_R).toFixed(4)};
-          if (vFaceZ < 0.0) luv.x = -luv.x;
           vec3 lab = vec3(0.0);
           if (uBlur > 0.02) {
             for (int k = 0; k < 7; k++) {
               float a = (float(k) / 6.0 - 0.5) * uBlur;
               float c = cos(a), s = sin(a);
-              lab += texture2D(uLabel, mat2(c, s, -s, c) * luv + 0.5).rgb;
+              mat2 rot = mat2(c, s, -s, c);
+              lab += textureGrad(uLabel, rot * luv + 0.5, rot * ldx, rot * ldy).rgb;
             }
             lab /= 7.0;
-          } else lab = texture2D(uLabel, luv + 0.5).rgb;
+          } else lab = textureGrad(uLabel, luv + 0.5, ldx, ldy).rgb;
           // paper label: faint fibre, a hair of emboss at the rim
           lab *= 0.96 + 0.06 * wkN(vRec * 900.0);
           lab *= 1.0 - 0.25 * smoothstep(${(LABEL_R - 0.006).toFixed(4)}, ${LABEL_R.toFixed(4)}, r);
@@ -345,13 +359,14 @@ export function recordMaterial(label: THREE.Texture, seed = 0) {
           float t2 = dot(Tv, H2);
           float s1 = max(1.0 - t1 * t1, 0.0);
           float s2 = max(1.0 - t2 * t2, 0.0);
-          float k1 = pow(s1, 36.0) * 0.16 + pow(s1, 320.0) * 1.35;
-          float k2 = pow(s2, 30.0) * 0.1 + pow(s2, 260.0) * 0.7;
+          // s1, s2 are clamped >= 0 above: pow never sees a negative base
+          float k1 = pow(s1, 36.0) * 0.16 * uSheen + pow(s1, 320.0) * 1.35;
+          float k2 = pow(s2, 30.0) * 0.1 * uSheen + pow(s2, 260.0) * 0.7;
           float lit1 = smoothstep(-0.1, 0.4, dot(Nv, uL1));
           float lit2 = smoothstep(-0.1, 0.4, dot(Nv, uL2));
           // fine grooves shimmer until they get too fine to resolve
           float fg = r * 2400.0;
-          float aa = 1.0 - smoothstep(0.6, 1.6, fwidth(fg));
+          float aa = 1.0 - smoothstep(0.6, 1.6, wkFineW);
           float fine = 1.0 + 0.28 * sin(fg) * aa;
           outgoingLight += vec3(1.0, 0.985, 0.96) * (k1 * lit1 + k2 * lit2) * wkAniso * wkBand * fine * uSpec;
         }

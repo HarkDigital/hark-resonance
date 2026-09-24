@@ -7,20 +7,26 @@ import { Led, Ridges, type Voice } from './ridges'
 import './voices.css'
 
 /*
- * LINER NOTES — client voices as a stacked ridgeline plot (the pulsar plot
- * from Unknown Pleasures), paper-white on graphite. Each testimonial is a
- * "track"; its words are baked into a voiceprint that the plot reshapes
- * into with a damped-spring pressure wave running front → back.
+ * LINER NOTES (track 03, side A) — client voices as a stacked ridgeline plot
+ * (the pulsar plot from Unknown Pleasures), paper-white on graphite. Each
+ * testimonial is a cut on this track; its words are baked into a voiceprint
+ * that the plot reshapes into with a damped-spring pressure wave running
+ * front → back.
  *
- *   0.00–0.06  in-beat: rows spring up front → back, camera settles in
+ *   0.00–0.07  in-beat, straight off The Crate's spinning record: the rows
+ *              arrive as that record's grooves (concentric rings seen from
+ *              above, a vinyl sheen, eight cuts split by track gaps), unroll
+ *              into straight lines as the camera tilts down, and spring up
+ *              front → back into the plot
  *   0.00–0.08  "We listen. They talk." + eyebrow
- *   0.08–0.94  eight cuts, A1–B4 (~0.107 each): credits, quote (word-rise),
- *              voice + client; the camera eases to a new angle per track and
- *              an LED playhead rides the front ridge through the track
- *   0.94–1.00  out-beat: the peaks cancel out (a damped swing through zero),
- *              the rows peel away back → front into the front line, then the
- *              camera cranes down onto it: one flat line and the LED at its
- *              centre (silence), and the ripple cut takes over
+ *   0.08–0.94  eight cuts, 01–08 (~0.107 each): credits, quote (word-rise),
+ *              voice + client; the camera eases to a new angle per cut and
+ *              an LED playhead rides the front ridge through the cut
+ *   0.93–1.00  out-beat, into Cymatics: the peaks cancel out (a damped swing
+ *              through zero), the rows peel away back → front while the camera
+ *              squares up and follows what is left, then cranes down onto it:
+ *              one level line edge to edge and the LED at its centre (silence),
+ *              which the ripple hands to the plate seen edge-on
  *
  * The scroll position decides which card SHOULD show; the DOM (and the plot's
  * reshape) are time-driven so they always settle, and a card that has started
@@ -42,9 +48,38 @@ const SETTLE = { head: 1.0, track: 1.15 }
 const DWELL = 0.9
 
 const pad = (n: number) => String(n).padStart(2, '0')
-const sideOf = (i: number) => (i < N / 2 ? 'A' : 'B')
-const trackNo = (i: number) => `${sideOf(i)}${(i % (N / 2)) + 1}`
 const secs = (s: number) => `${pad(Math.floor(s / 60))}:${pad(Math.floor(s % 60))}`
+
+/**
+ * The whole story is one record and this chapter is one track on it, so the
+ * testimonials are its cuts: 01–08.
+ */
+const cutNo = (i: number) => pad(i + 1)
+
+/** In-beat: 1 = the rows are the record's grooves, 0 = straight ridgelines. */
+const grooveAt = (local: number) => 1 - ease.inOutCubic(segment(local, 0.006, 0.056))
+/** ...and the camera's top-down lean, which lands a touch after the unroll. */
+const grooveCamAt = (local: number) => 1 - ease.inOutCubic(segment(local, 0, 0.064))
+/** rows spring up front → back once the grooves are nearly straight */
+const springAt = (local: number) => clamp((local - 0.02) / 0.046)
+/**
+ * Out-beat, into Cymatics (shared by the plot and the camera): the peaks
+ * cancel, the rows peel away back → front, the camera levels and cranes down
+ * onto the one line left, which stretches edge to edge and settles to silence.
+ */
+const OUT = {
+  cancel: (l: number) => segment(l, 0.935, 0.965),
+  solo: (l: number) => ease.inOutQuad(segment(l, 0.934, 0.954)),
+  fold: (l: number) => ease.inOutCubic(segment(l, 0.945, 0.966)),
+  level: (l: number) => ease.inOutCubic(segment(l, 0.936, 0.962)),
+  crane: (l: number) => ease.inOutCubic(segment(l, 0.942, 0.975)),
+  width: (l: number) => ease.inOutCubic(segment(l, 0.948, 0.988)),
+}
+/** the furthest row still drawn while the stack peels away (mirrors LINE_FRAG) */
+const visibleBack = (l: number) => clamp(1.04 - OUT.solo(l) * 1.01, 0, 1)
+
+/** where a keyboard stop lands for cut i: the middle of its scroll span */
+const cutAnchor = (i: number) => B0 + (i + 0.5) * SPAN
 
 /** camera angle per card: [azimuth°, elevation°]; 0 = header, 1..N tracks */
 const POSES: [number, number][] = [
@@ -91,8 +126,9 @@ export default function create(): Chapter {
 
   const tmp = new THREE.Vector3()
   const res = new THREE.Vector2()
+  const ndc = new THREE.Vector3()
   // camera-fit scratch
-  const pts = Array.from({ length: 7 }, () => new THREE.Vector3())
+  const pts = Array.from({ length: 11 }, () => new THREE.Vector3())
   const centre = new THREE.Vector3()
   const dir = new THREE.Vector3()
   const fwd = new THREE.Vector3()
@@ -118,8 +154,8 @@ export default function create(): Chapter {
     TESTIMONIALS.forEach((t, i) => {
       const root = el('article', 'vx-card vx-track', undefined, col)
       const top = el('p', 'hud-eyebrow vx-eyebrow', undefined, root)
-      // vinyl notation (the chrome already numbers chapters as "tracks")
-      const no = rise(el('span', '', undefined, top), `Side ${sideOf(i)} · Cut ${pad((i % (N / 2)) + 1)}`)
+      // vinyl notation: the chrome numbers chapters as tracks, these are its cuts
+      const no = rise(el('span', '', undefined, top), `Cut ${cutNo(i)} / ${pad(N)}`)
       const bq = el('blockquote', 'vx-quote', undefined, root)
       const q = rise(el('p', 'hud-quote', undefined, bq), `“${t.quote}”`)
       el('div', 'vx-rule', undefined, root).setAttribute('aria-hidden', 'true')
@@ -136,14 +172,16 @@ export default function create(): Chapter {
     // the tracklist, back-of-sleeve style
     list = el('div', 'vx-list', undefined, stage)
     list.setAttribute('aria-hidden', 'true')
+    const half = Math.ceil(N / 2)
     for (let s = 0; s < 2; s++) {
-      const side = el('div', 'vx-side', undefined, list)
-      el('p', 'vx-side-h', `Side ${s ? 'B' : 'A'}`, side)
-      const ol = el('ol', '', undefined, side)
-      for (let k = 0; k < N / 2; k++) {
-        const i = s * (N / 2) + k
+      const col = el('div', 'vx-side', undefined, list)
+      const first = s * half
+      const last = Math.min(N, first + half)
+      el('p', 'vx-side-h', `Cuts ${cutNo(first)}–${cutNo(last - 1)}`, col)
+      const ol = el('ol', '', undefined, col)
+      for (let i = first; i < last; i++) {
         const li = el('li', '', undefined, ol)
-        el('span', 'vx-li-n', trackNo(i), li)
+        el('span', 'vx-li-n', cutNo(i), li)
         el('span', 'vx-li-t', TESTIMONIALS[i].company, li)
         listItems.push(li)
       }
@@ -315,11 +353,46 @@ export default function create(): Chapter {
     return POSES[POSES.length - 1]
   }
 
+  /** screen x (px) of the front ridge's baseline at plot x, through last frame's camera */
+  function frontX(x: number, camera: THREE.Camera, w: number) {
+    ridges.plotPoint(x, 0, 0, ndc).applyMatrix4(group.matrixWorld).project(camera)
+    return (ndc.x * 0.5 + 0.5) * w
+  }
+
+  /**
+   * The playhead's travel along the front ridge: ±0.66 of the plot, trimmed
+   * so the LED (and its callout elbow) never rides past the screen edge on a
+   * narrow viewport, where the plot deliberately bleeds off both sides.
+   */
+  const span: [number, number] = [-0.66, 0.66]
+  function ledSpan(f: Frame, camera: THREE.Camera) {
+    const w = f.width
+    const margin = clamp(0.034 * w, 16, 48) + 14
+    const sL = frontX(-1, camera, w)
+    const sR = frontX(1, camera, w)
+    span[0] = -0.66
+    span[1] = 0.66
+    if (!Number.isFinite(sL + sR) || sR - sL < 1) return span
+    // near-linear along the front row: one solve, then one secant correction
+    const solve = (target: number) => {
+      let x = -1 + (2 * (target - sL)) / (sR - sL)
+      x += (2 * (target - frontX(x, camera, w))) / (sR - sL)
+      return x
+    }
+    if (sL < margin) span[0] = Math.max(span[0], solve(margin))
+    if (sR > w - margin) span[1] = Math.min(span[1], solve(w - margin))
+    if (!(span[1] - span[0] > 0.1)) span[0] = span[1] = (span[0] + span[1]) / 2 || 0
+    return span
+  }
+
   /* ------------------------------------------------------------- chapter */
 
   return {
     id: 'voices',
     group,
+    // keyboard stops (srContent: one per testimonial) land mid-cut, where the
+    // plot has reshaped and the quote has risen and settled
+    anchors: TESTIMONIALS.map((_, i) => cutAnchor(i)),
 
     init(ctx: ChapterContext) {
       ctx.stage.classList.add('is-dark')
@@ -357,20 +430,21 @@ export default function create(): Chapter {
       updateDeck(local, frame, calm)
 
       // ---- the plot
-      const out = segment(local, 0.935, 0.965)
+      const out = OUT.cancel(local)
       // phase cancellation: a damped swing through zero, then silence
       const cancel = Math.exp(-3 * out) * Math.cos(out * Math.PI * 2.5) * (1 - out)
       u.uTime.value = calm ? now * 0.35 : now
       u.uFlow.value = (calm ? 0.35 : 1) * (1 - out)
       u.uCalm.value = calm ? 1 : 0
-      u.uIn.value = clamp(local / 0.06)
+      u.uIn.value = springAt(local)
+      u.uGroove.value = calm ? 0 : grooveAt(local)
       u.uGain.value = cancel
       u.uA.value = morphFrom
       u.uB.value = morphTo
       u.uMorphT.value = now - morphAt
-      const fold = ease.inOutCubic(segment(local, 0.945, 0.966))
+      const fold = OUT.fold(local)
       u.uDepthScale.value = lerp(1, 0.015, fold)
-      u.uWScale.value = lerp(1, 1.5, ease.inOutCubic(segment(local, 0.948, 0.988)))
+      u.uWScale.value = lerp(1, 1.5, OUT.width(local))
       ctx.renderer.getDrawingBufferSize(res)
       u.uRes.value.copy(res)
       const dpr = ctx.renderer.getPixelRatio()
@@ -378,7 +452,7 @@ export default function create(): Chapter {
       // the last line glints into HDR as the ripple takes over
       u.uBright.value = 0.94 + ease.inQuad(segment(local, 0.955, 1)) * 1.4
       u.uFadeBack.value = lerp(0.34, 0.12, fold)
-      u.uSolo.value = ease.inOutQuad(segment(local, 0.936, 0.955))
+      u.uSolo.value = OUT.solo(local)
 
       // ---- pointer pressure: raycast onto the plot's floor, swell where it moves
       pokeUpdate(frame, ctx, local)
@@ -418,7 +492,8 @@ export default function create(): Chapter {
       phVis = damp(phVis, phOn ? 1 : 0, phOn ? 6 : 14, frame.dt)
       if (Math.abs(phVis - (phOn ? 1 : 0)) < 0.004) phVis = phOn ? 1 : 0
       const toCentre = ease.inOutCubic(segment(local, 0.945, 0.975))
-      const px = lerp(lerp(-0.66, 0.66, ease.inOutQuad(clamp(ph))), 0, toCentre)
+      const [pa, pb] = ledSpan(frame, ctx.camera)
+      const px = lerp(lerp(pa, pb, ease.inOutQuad(clamp(ph))), 0, toCentre)
       ridges.pointAt(px, 0, tmp)
       led.mesh.position.copy(tmp)
       const endGlow = ease.inQuad(segment(local, 0.955, 1))
@@ -432,7 +507,10 @@ export default function create(): Chapter {
       ctx.camera.updateMatrixWorld()
       if (phVis > 0 && cur >= 0) {
         const d = durations[cur]
-        const label = `${trackNo(cur)} · ${secs(clamp(ph) * d)} / ${secs(d)}`
+        // phones: time only (the cut number sits right below, in the eyebrow),
+        // so the label fits beside the LED instead of over its own elbow
+        const time = `${secs(clamp(ph) * d)} / ${secs(d)}`
+        const label = frame.width < 560 ? time : `Cut ${cutNo(cur)} · ${time}`
         if (label !== lastLabel) {
           phLabel.textContent = label
           lastLabel = label
@@ -445,36 +523,46 @@ export default function create(): Chapter {
     camera(local, frame, out) {
       const R = plotRect(frame)
       const [az0, el0] = poseAt(local)
-      const inT = ease.outCubic(segment(local, 0, 0.08))
-      const o = ease.inOutCubic(segment(local, 0.948, 0.978))
+      const calm = frame.reducedMotion
+      // in-beat: straight down onto the record, tilting to the plot's angle
+      const gc = calm ? 0 : grooveCamAt(local)
+      const g = calm ? 0 : grooveAt(local)
+      const o = OUT.crane(local)
       // slow scroll-coupled drift so the plot is never quite still
       const drift = (local - 0.5) * 8
-      const az = THREE.MathUtils.degToRad(lerp(az0 + drift, 0, o))
-      const elv = THREE.MathUtils.degToRad(lerp(el0 + (1 - inT) * 7, 2.5, o))
+      // square to the line before craning down, so it never lands tilted
+      const az = THREE.MathUtils.degToRad(lerp(lerp(az0 + drift, -8, gc), 0, OUT.level(local)))
+      const elv = THREE.MathUtils.degToRad(lerp(lerp(el0, 66, gc), 2.5, o))
       const fov = R.fov
       const tv = Math.tan(THREE.MathUtils.degToRad(fov / 2))
       const aspect = frame.width / Math.max(1, frame.height)
 
       // the plot's key points for this local (mirrors the update's uniforms)
       const r = ridges
-      const ds = lerp(1, 0.015, ease.inOutCubic(segment(local, 0.945, 0.966)))
-      const ws = lerp(1, 1.5, ease.inOutCubic(segment(local, 0.948, 0.988)))
+      const ds = lerp(1, 0.015, OUT.fold(local))
+      const ws = lerp(1, 1.5, OUT.width(local))
+      // frame only the rows still drawn: as the stack peels away the camera
+      // follows what is left of it down to the last line
+      const rb = visibleBack(local)
       const zf = r.depth * 0.5
-      const zb = zf - r.depth * ds
-      const hx = r.halfW * ws * 0.9
-      const hy = r.heightScale * 0.85 * (1 - o)
-      pts[0].set(-hx, 0, zf)
-      pts[1].set(hx, 0, zf)
-      pts[2].set(-hx, 0, zb)
-      pts[3].set(hx, 0, zb)
-      pts[4].set(0, hy, zf)
-      pts[5].set(0, hy, (zf + zb) / 2)
-      pts[6].set(0, hy, zb)
-      centre.set(0, r.heightScale * 0.25 * (1 - o), (zf + zb) / 2)
+      const zb = zf - r.depth * ds * rb
+      // peak height: the grooves are flat until they unroll; the out-beat's
+      // cancellation takes the peaks down
+      const oc = OUT.cancel(local)
+      const hy = 0.85 * (1 - o) * (1 - g) * Math.exp(-3 * oc) * (1 - oc)
+      // the front and back rows' outline (the straight plot's corners at
+      // ±0.9 or, as grooves, the rings' full extent) + the peak tops
+      const xe = 0.9 + 0.1 * Math.min(1, g * 4)
+      const X = [-xe, -0.5, 0, 0.5, xe]
+      for (let i = 0; i < 5; i++) r.plotPoint(X[i], 0, 0, pts[i], g, ds, ws)
+      for (let i = 0; i < 3; i++) r.plotPoint(X[i * 2], rb, 0, pts[5 + i], g, ds, ws)
+      for (let i = 0; i < 3; i++) r.plotPoint(0, i * 0.5 * rb, hy, pts[8 + i], g, ds, ws)
+      centre.set(0, r.heightScale * 0.25 * (1 - o) * (1 - g), (zf + zb) / 2)
 
-      // target rect → centred full-width line at the out-beat
-      const x0 = lerp(R.x0, -0.94, o)
-      const x1 = lerp(R.x1, 0.94, o)
+      // target rect → centred full-width line at the out-beat; the record
+      // (in-beat) stays whole inside the frame rather than bleeding off it
+      const x0 = lerp(lerp(R.x0, Math.max(R.x0, -0.92), gc), -0.94, o)
+      const x1 = lerp(lerp(R.x1, Math.min(R.x1, 0.92), gc), 0.94, o)
       const y0 = lerp(R.y0, -0.1, o)
       const y1 = lerp(R.y1, 0.1, o)
       const tx = (x0 + x1) / 2
@@ -510,7 +598,8 @@ export default function create(): Chapter {
         oy += ty - (mny + mxy) / 2
         d *= Math.max(0.5, Math.min(2, k))
       }
-      d *= 1 + (1 - inT) * 0.2
+      // a touch wide on the record, pushing in as it becomes the plot
+      d *= 1 + gc * 0.14
       out.target.copy(centre).addScaledVector(right, -ox * d * tv * aspect).addScaledVector(up, -oy * d * tv)
       out.position.copy(out.target).addScaledVector(dir, d)
       out.fov = fov

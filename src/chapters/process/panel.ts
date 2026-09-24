@@ -97,7 +97,7 @@ export function drawPanel(canvas: HTMLCanvasElement, withLogo: boolean) {
   text('R', L.masterMeters[1], L.meterZ0 - 0.06, mono(0.03), 'center', INK_SOFT)
   knobScale(L.levelKnob[0], L.levelKnob[1], L.levelKnobR, 'LEVEL', 21)
 
-  // the Hark mark + a small maker's plate
+  // the Hark mark + a small maker's plate (the studio's own name and city, no invented model number)
   const lx = L.logoAt[0]
   const lz = L.logoAt[1]
   if (withLogo) {
@@ -120,7 +120,7 @@ export function drawPanel(canvas: HTMLCanvasElement, withLogo: boolean) {
     }
   }
   text('Hark', lx + 0.16, lz - 0.035, sans(0.09, 680), 'left', INK, -0.004)
-  text('RESONANCE DESK · RD-04', lx + 0.165, lz + 0.06, mono(0.026), 'left', INK_SOFT, 0.005)
+  text('CH 1–4 · MASTER', lx + 0.165, lz + 0.06, mono(0.026), 'left', INK_SOFT, 0.005)
   text('PHILADELPHIA', lx + 0.165, lz + 0.1, mono(0.026), 'left', INK_SOFT, 0.005)
 }
 

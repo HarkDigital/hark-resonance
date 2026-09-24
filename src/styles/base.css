@@ -23,7 +23,7 @@
   /* foreground tokens — flipped by .is-dark */
   --fg: var(--ink);
   --fg-muted: rgba(14, 14, 15, 0.66);
-  --fg-faint: rgba(14, 14, 15, 0.52);
+  --fg-faint: rgba(14, 14, 15, 0.64);
   --line: rgba(14, 14, 15, 0.14);
   --line-strong: rgba(14, 14, 15, 0.3);
   --surface: rgba(247, 245, 240, 0.72);
@@ -45,7 +45,7 @@
 .is-dark {
   --fg: var(--paper);
   --fg-muted: rgba(238, 235, 228, 0.72);
-  --fg-faint: rgba(238, 235, 228, 0.55);
+  --fg-faint: rgba(238, 235, 228, 0.64);
   --line: rgba(238, 235, 228, 0.16);
   --line-strong: rgba(238, 235, 228, 0.34);
   --surface: rgba(20, 20, 22, 0.62);

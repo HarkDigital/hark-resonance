@@ -21,6 +21,7 @@ import { mountDebug } from './core/debug'
  *   ?p=0.42             jump to global progress
  *   ?only=work          init only that chapter (fast dev loop)
  *   ?debug              fps / chapter / progress readout
+ *   ?gate               always ask "Play with sound / Enter quietly" (demos)
  */
 const params = new URLSearchParams(location.search)
 
@@ -33,7 +34,7 @@ declare global {
       /** exact jump (screenshots, tests) */
       gotoChapter: (id: string, local?: number) => void
       /** visitor navigation: lands just past the cut on settled copy; long jumps cut */
-      land: (id: string, smooth?: boolean) => void
+      land: (id: string, smooth?: boolean, local?: number) => void
     }
   }
 }
@@ -82,7 +83,7 @@ async function boot() {
     engine,
     goto: p => engine.goto(p),
     gotoChapter: (id, l = 0) => engine.gotoChapter(id, l),
-    land: (id, smooth = true) => engine.land(id, smooth),
+    land: (id, smooth = true, local) => engine.land(id, smooth, local),
   }
   if (params.has('debug')) mountDebug(engine)
 

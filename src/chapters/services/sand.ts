@@ -72,13 +72,15 @@ vec3 grain(int id, out float travel) {
   float hop = abs(sin(ph * 0.53)) * amp * 0.016;
   // pressure-wave front (the plate "rings")
   float r = length(p);
-  float wv = exp(-pow((r - uWave.x) / uWave.z, 2.0)) * uWave.y;
+  float wq = (r - uWave.x) / uWave.z;
+  float wv = exp(-wq * wq) * uWave.y;
   hop += wv * (0.007 + 0.006 * h.y) * (0.6 + 0.8 * aRnd.x);
   p += (r > 1e-4 ? p / r : vec2(0.0)) * wv * 0.006 * (h.x + 0.5);
   // a knock on the plate: a ring from the tap point
   vec2 tq = p - uTap.xy;
   float tr = length(tq);
-  float tw = exp(-pow((tr - uTap.z) / 0.08, 2.0)) * uTap.w;
+  float tq2 = (tr - uTap.z) / 0.08;
+  float tw = exp(-tq2 * tq2) * uTap.w;
   hop += tw * (0.014 + 0.012 * h.y) * (0.6 + 0.8 * aRnd.x);
   p += (tr > 1e-4 ? tq / tr : vec2(0.0)) * tw * 0.009 * (h.x + 0.5);
   travel = bell;

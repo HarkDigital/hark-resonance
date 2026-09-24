@@ -7,24 +7,33 @@ import { DB_MARKS, LAYOUT as L, faderDb } from './layout'
 import './process.css'
 
 /*
- * THE DESK — "How we work."
+ * THE DESK — "We listen first. Then we build."  (after the Noise Floor bench
+ * scope, before the ferrofluid Say Hello)
  *
- * A close-up product film of a four-channel console on the bone cyc. Each
+ * A low-angle product film of a four-channel console on the bone cyc. Each
  * process step is a channel: as you scroll, its fader climbs the dB legend
  * detent by detent (a damped spring chases a scroll-derived staircase, so it
  * clicks and overshoots), its meter jumps, its LED lights and the camera
- * dollies on down the desk. Then the bridge readouts clear and sweep in the
- * stats, and the master fader slams to the stop with every meter pinned as
- * the ripple takes over.
+ * settles on that strip. The walk starts close on Listen and pulls back and
+ * round a little with every channel, so the mix builds into the whole desk;
+ * the meter bridge and the cyc above it stay in shot, so the chrome's nav band
+ * only ever sits on paper. Then the bridge readouts clear and sweep in the
+ * stats, and the master fader slams to the stop with every meter pinned while
+ * the camera cranes up over it, handing over to the overhead dish.
  *
- *   0.00–0.08  ripple lands, desk self-test sweep; "How we work."
+ *   0.00–0.08  ripple lands, desk self-test sweep; eyebrow + headline
  *   0.08–0.80  channels 01–04: Listen · Prototype · Build · Support
+ *              (each settles at ANCHORS[i]: fader up, its text open)
  *   0.80–0.95  bridge readouts: 10 YRS · $1M+ · 15 (+ labels)
- *   0.95–1.00  master to +10, all meters peak → cut
+ *   0.95–1.00  master to +10, all meters peak, crane up → cut
  */
 
 const S0 = 0.08
 const SW = 0.18
+/** the camera settles on channel i here (its fader has just clicked up) */
+const WALK = [0.1, 0.35, 0.53, 0.71]
+/** keyboard / screen-reader stops, one per PROCESS step: fader up, row open, strip framed */
+const ANCHORS = [0.17, 0.35, 0.53, 0.71]
 const STATS_AT = 0.8
 const END_AT = 0.952
 const UNITY = 0.75
@@ -54,6 +63,10 @@ function faderTarget(i: number, local: number) {
   return detent(lerp(UNITY, 1, ease.inOutCubic(segment(local, END_AT, 0.985))))
 }
 
+/** where each channel's GAIN / TONE pair snaps to as it opens */
+const KNOB_GAIN = [0.55, 0.15, 1.05, 0.4]
+const KNOB_TONE = [-0.45, 0.5, 0.25, -0.2]
+
 // channel "programme material" for the meters: a breathing pad, a pulse, a kick, a steady bed
 const ENV = [
   (t: number) => 0.8 + 0.13 * Math.sin(t * 1.9) + 0.06 * Math.sin(t * 5.3 + 1),
@@ -82,25 +95,44 @@ interface Shot {
 }
 
 const inOutSine = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t)
-const ch = (i: number): [number, number, number] => [L.channels[i] + 0.02, 0.3, 0.62]
+const linear = (t: number) => t
+const ch = (i: number, dx = 0): [number, number, number] => [L.channels[i] + 0.02 + dx, 0.3, 0.62]
 
+/*
+ * Landscape. The channel keys are low (el 26–31) so the meter bridge and the
+ * cyc above it stay in shot: the desk's far edge sits below the chrome band
+ * (checked at 1024x768 … 1920x1080), the headline and list sit on paper, and
+ * the strip stays right of the copy column. Each channel pulls back and swings
+ * round a little further than the last, so by Support the whole desk is in view.
+ */
 const WIDE: Shot[] = [
   { t: 0, p: [-0.35, 0.32, 0.25], az: 30, el: 38, w: 6.2, h: 3.4, sx: 0.3, sy: -0.34, fov: 30 },
-  { t: 0.09, p: ch(0), az: 30, el: 56, w: 3.1, h: 1.95, sx: 0.26, sy: 0.26, fov: 30, e: ease.inOutCubic },
-  { t: 0.78, p: ch(3), az: 28, el: 58, w: 3.3, h: 2.1, sx: 0.24, sy: 0.3, fov: 30, e: inOutSine },
+  { t: WALK[0], p: ch(0), az: 20, el: 26, w: 2.88, h: 1.8, sx: 0.36, sy: -0.3, fov: 30, e: ease.inOutCubic },
+  { t: WALK[1], p: ch(1), az: 25, el: 27, w: 3.04, h: 1.9, sx: 0.36, sy: -0.32, fov: 30, e: inOutSine },
+  { t: WALK[2], p: ch(2), az: 33, el: 28, w: 3.52, h: 2.2, sx: 0.34, sy: -0.36, fov: 30, e: inOutSine },
+  { t: WALK[3], p: ch(3), az: 40, el: 30, w: 4.32, h: 2.7, sx: 0.4, sy: -0.45, fov: 30, e: inOutSine },
+  { t: 0.78, p: ch(3, 0.06), az: 40, el: 31, w: 4.42, h: 2.76, sx: 0.4, sy: -0.45, fov: 30, e: linear },
   { t: 0.865, p: [0, 0.3, 0.02], az: 0, el: 24, w: 7.0, h: 3.3, sx: 0, sy: 0.1, fov: 30, e: ease.inOutCubic },
-  { t: END_AT, p: [0.06, 0.3, 0.02], az: 2.5, el: 25, w: 6.7, h: 3.15, sx: 0, sy: 0.1, fov: 30, e: (t: number) => t },
-  { t: 1, p: [L.masterX + 0.1, 0.3, 0.55], az: 18, el: 38, w: 1.5, h: 1.1, sx: 0, sy: 0.02, fov: 30, e: ease.inCubic },
+  { t: END_AT, p: [0.06, 0.3, 0.02], az: 2.5, el: 25, w: 6.7, h: 3.15, sx: 0, sy: 0.1, fov: 30, e: linear },
+  // the master slam: push in and crane up over the fader (Say Hello opens overhead)
+  { t: 1, p: [L.masterX + 0.05, 0.3, 0.5], az: 8, el: 58, w: 1.5, h: 1.2, sx: 0, sy: 0.02, fov: 30, e: ease.inCubic },
 ]
 
+/** Portrait: one strip at a time, centred in the free band between headline and list. */
 const TALL: Shot[] = [
   { t: 0, p: [0.1, 0.32, 0.2], az: 24, el: 42, w: 5.0, h: 3.4, sx: 0, sy: 0.02, fov: 38 },
-  { t: 0.09, p: ch(0), az: 22, el: 60, w: 2.1, h: 2.2, sx: 0, sy: 0.02, fov: 38, e: ease.inOutCubic },
-  { t: 0.78, p: ch(3), az: 28, el: 62, w: 2.1, h: 2.2, sx: 0, sy: 0.02, fov: 38, e: inOutSine },
+  { t: WALK[0], p: ch(0), az: 22, el: 60, w: 2.1, h: 2.2, sx: 0, sy: 0.02, fov: 38, e: ease.inOutCubic },
+  { t: WALK[1], p: ch(1), az: 24, el: 60, w: 2.1, h: 2.2, sx: 0, sy: 0.02, fov: 38, e: inOutSine },
+  { t: WALK[2], p: ch(2), az: 26, el: 61, w: 2.1, h: 2.2, sx: 0, sy: 0.02, fov: 38, e: inOutSine },
+  { t: WALK[3], p: ch(3), az: 28, el: 62, w: 2.1, h: 2.2, sx: 0, sy: 0.02, fov: 38, e: inOutSine },
+  { t: 0.78, p: ch(3, 0.05), az: 28, el: 62, w: 2.15, h: 2.25, sx: 0, sy: 0.02, fov: 38, e: linear },
   { t: 0.865, p: [0, 0.3, -0.05], az: 0, el: 50, w: 4.5, h: 2.1, sx: 0, sy: 0.3, fov: 38, e: ease.inOutCubic },
-  { t: END_AT, p: [0.04, 0.3, -0.05], az: 2.5, el: 51, w: 4.3, h: 2.0, sx: 0, sy: 0.3, fov: 38, e: (t: number) => t },
-  { t: 1, p: [L.masterX + 0.1, 0.3, 0.55], az: 14, el: 50, w: 1.1, h: 1.4, sx: 0, sy: 0.05, fov: 38, e: ease.inCubic },
+  { t: END_AT, p: [0.04, 0.3, -0.05], az: 2.5, el: 51, w: 4.3, h: 2.0, sx: 0, sy: 0.3, fov: 38, e: linear },
+  { t: 1, p: [L.masterX + 0.05, 0.3, 0.5], az: 6, el: 64, w: 1.1, h: 1.4, sx: 0, sy: 0.05, fov: 38, e: ease.inCubic },
 ]
+/** the walk keys (portrait) whose framing follows the free band */
+const TALL_WALK = TALL.slice(1, 6)
+const STATS_KEYS = { wide: [WIDE[6], WIDE[7]], tall: [TALL[6], TALL[7]] }
 
 const _dir = new THREE.Vector3()
 const _right = new THREE.Vector3()
@@ -173,6 +205,7 @@ export default function create(): Chapter {
   return {
     id: 'process',
     group,
+    anchors: ANCHORS,
 
     init(ctx: ChapterContext) {
       desk = new Desk(ctx.mobile)
@@ -224,13 +257,11 @@ export default function create(): Chapter {
       }
 
       // ---- knobs: each channel's pair snaps to its setting as the channel opens
-      const gain = [0.55, 0.15, 1.05, 0.4]
-      const toneSet = [-0.45, 0.5, 0.25, -0.2]
       for (let i = 0; i < 4; i++) {
         const s = S0 + SW * i
         const a = ease.outBack(segment(local, s + 0.01, s + 0.06))
-        st.knob[i * 2] = lerp(-2.36, gain[i], a)
-        st.knob[i * 2 + 1] = lerp(0, toneSet[i], a)
+        st.knob[i * 2] = lerp(-2.36, KNOB_GAIN[i], a)
+        st.knob[i * 2 + 1] = lerp(0, KNOB_TONE[i], a)
       }
       st.knob[8] = lerp(-0.9, 2.1, ease.outBack(segment(local, END_AT, 0.985)))
 
@@ -285,9 +316,14 @@ export default function create(): Chapter {
 
       // ---- HUD
       const portrait = frame.width / Math.max(1, frame.height) < 0.8
-      const scrimV = smoothstep(0.05, 0.12, local) * (1 - smoothstep(STATS_AT - 0.03, STATS_AT + 0.02, local))
-      const so = scrimV.toFixed(3)
+      const scrimOut = 1 - smoothstep(STATS_AT - 0.03, STATS_AT + 0.02, local)
+      // the column's paper is fully up before the list rows (0.06) and the first step's text (0.08) rise
+      const so = (smoothstep(0.03, 0.07, local) * scrimOut).toFixed(3)
       if (hud.scrim.style.opacity !== so) hud.scrim.style.opacity = so
+      // portrait: the headline sits on paper from the first frame, while the dolly-in climbs past it,
+      // and the paper holds under the chrome until the pull-back has cleared the desk out of the header
+      const sh = (1 - smoothstep(0.835, 0.862, local)).toFixed(3)
+      if (hud.scrimHead.style.opacity !== sh) hud.scrimHead.style.opacity = sh
       hud.update({
         head: local < STATS_AT - 0.004,
         list: local >= 0.06 && local < STATS_AT - 0.004,
@@ -339,26 +375,31 @@ export default function create(): Chapter {
 
     camera(local: number, frame: Frame, out: CameraPose) {
       const aspect = frame.width / Math.max(1, frame.height)
-      const keys = aspect < 0.8 ? TALL : WIDE
+      const tall = aspect < 0.8
+      const keys = tall ? TALL : WIDE
       const band = hud?.band
+      const H = Math.max(1, frame.height)
       if (band && band.statsTop > band.headTop + 60) {
         // stats frame: fit the whole desk into the space between the top chrome and the stats block
         const top = band.headTop
         const bot = band.statsTop - 20
         const mid = (top + bot) / 2
-        const sy = clamp(1 - (2 * mid) / Math.max(1, frame.height), -0.2, 0.6)
-        const h = (STATS_FIT * frame.height) / Math.max(140, bot - top)
-        for (const k of [keys[3], keys[4]]) {
+        const sy = clamp(1 - (2 * mid) / H, -0.2, 0.6)
+        const h = (STATS_FIT * H) / Math.max(140, bot - top)
+        for (const k of tall ? STATS_KEYS.tall : STATS_KEYS.wide) {
           k.sy = sy
           k.h = h
         }
       }
-      if (aspect < 0.8 && band && band.bottom > band.top) {
+      if (tall && band && band.bottom > band.top) {
         // centre the channel close-ups in the free band between headline and list
         const mid = (band.top + band.bottom) / 2
-        const sy = clamp(1 - (2 * mid) / Math.max(1, frame.height), -0.4, 0.5)
-        TALL[1].sy = sy
-        TALL[2].sy = sy
+        const sy = clamp(1 - (2 * mid) / H, -0.4, 0.5)
+        for (const k of TALL_WALK) k.sy = sy
+        // the in-beat wide sits in the band under the headline (the list is not up yet), so
+        // on short phones the dolly-in never sweeps the meter bridge up through the title
+        const open = (band.top + band.floor) / 2
+        TALL[0].sy = clamp(1 - (2 * open) / H, -0.3, 0.1)
       }
       shotAt(keys, local, shot)
       if (!frame.reducedMotion) {

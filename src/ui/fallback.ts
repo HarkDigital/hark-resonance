@@ -1,6 +1,7 @@
 import { BRAND, CONTACT, PROCESS, SECTIONS, SECURITY, SERVICES, STATS, TESTIMONIALS, WORK, workImage } from '../content'
-import { markSvg } from './mark'
+import { CONCEPT_TAG, WORDMARK, markSvg } from './mark'
 import { unmountRotateGate } from './rotate'
+import { releaseInert } from './inert'
 
 /**
  * Plain HTML version of the story for browsers without WebGL2 (and the
@@ -10,6 +11,8 @@ import { unmountRotateGate } from './rotate'
 export function renderFallback(root: HTMLElement) {
   document.documentElement.classList.add('no-webgl')
   unmountRotateGate()
+  // boot can fail while the loader still holds the page inert: let go of it
+  releaseInert('loader')
   const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
   /** editorial accent: the last word of a headline in the serif italic */
   const accent = (s: string) => {
@@ -24,7 +27,7 @@ export function renderFallback(root: HTMLElement) {
     <header class="fb-top">
       <a class="fb-brand" href="#fb-top" aria-label="${esc(BRAND.name)}, top of page">
         <span class="fb-mark">${markSvg('fb-mark-svg')}</span>
-        <span class="fb-word" aria-hidden="true">Hark Digital <em>Resonance</em></span>
+        <span class="fb-brand-text" aria-hidden="true"><span class="fb-word">${WORDMARK}</span><span class="fb-sub">${CONCEPT_TAG}</span></span>
       </a>
       <nav class="fb-nav" aria-label="Primary">
         <a class="fb-link" href="#fb-work">Work</a>

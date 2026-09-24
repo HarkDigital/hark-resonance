@@ -587,11 +587,13 @@ export class Engine {
     for (let i = 1; i < this.slots.length; i++) d = Math.min(d, Math.abs(scrollVh - this.slots[i].start))
     const tr = clamp(1 - d / CUT_WINDOW)
     const cut = Math.max(tr * tr * (3 - 2 * tr), fx)
+    // the cut wash (and the reduced-motion dip) takes the room's colour:
+    // paper in light rooms, graphite between dark ones
+    this.post.setFadeTone(this.studio.tone)
     if (this.reducedMotion) {
       // no ripples or flashes: a quiet dip to paper instead
       this.post.transition = 0
       this.post.fade = cut * 0.85
-      this.post.setFadeTone(this.studio.tone)
     } else {
       this.post.transition = cut
       this.post.fade = 0

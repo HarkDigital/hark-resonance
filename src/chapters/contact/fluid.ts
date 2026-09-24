@@ -375,7 +375,7 @@ float sdfAt(vec2 p) {
   float ang = atan(p.y, p.x);
   float front = t * (uGeoMax + 0.08) - 0.02 + 0.012 * sin(ang * 7.0 + uTime * 1.3) * (1.0 - t);
   float fill = -smin(-sg.x, -(sg.y - front), 0.03);
-  float pud = puddleSdf(p) + uPuddleR * (1.0 - pow(1.0 - t, 0.8)) + t * t * 0.2;
+  float pud = puddleSdf(p) + uPuddleR * (1.0 - pow(max(1.0 - t, 0.0), 0.8)) + t * t * 0.2;
   return smin(fill, pud, 0.06);
 }
 float fieldAt(vec2 p) {
@@ -392,7 +392,7 @@ float meniscus(float d, float H) {
   // (multisampled) depth intersection, not an aliased discard
   if (d > 0.0) return -min(d * 3.0, 0.02);
   float x = clamp(-d / uMenR, 0.0, 1.0);
-  return H * (1.0 - pow(1.0 - x, 2.6));
+  return H * (1.0 - pow(max(1.0 - x, 0.0), 2.6));
 }
 // offset from the nearest hex-lattice spike (xy) and that spike's lattice coords (zw)
 vec4 hexCell(vec2 p) {
@@ -409,7 +409,7 @@ float spikeShape(vec2 d, float an, out vec2 grad) {
   float R = uSpacing * 0.5 * mix(0.42, 1.0, sqrt(clamp(an, 0.0, 1.0)));
   float r = length(d);
   float t = clamp(r / R, 0.0, 1.0);
-  float k = 1.0 - t;
+  float k = max(1.0 - t, 0.0);
   grad = (r > 1e-6 && t < 1.0) ? d / r * (-1.55 * pow(k, 0.55) / R) : vec2(0.0);
   return pow(k, 1.55);
 }
@@ -629,10 +629,11 @@ varying vec2 vLP;`,
   float r = length(vLP);
   float ang = atan(vLP.y, vLP.x) / 6.2831853 + 0.5;
   float f = fract(ang * 120.0);
-  float aa = fwidth(ang * 120.0) + 1e-4;
+  float fr = fwidth(r) + 1e-5;
+  // tick AA from the radial footprint (fwidth(ang) spikes at the atan seam)
+  float aa = 120.0 * fr / (6.2831853 * max(r, 1e-3)) + 1e-4;
   float line = 1.0 - smoothstep(0.1 - aa, 0.1 + aa, min(f, 1.0 - f));
   float major = 1.0 - step(0.5, mod(floor(ang * 120.0 + 0.5), 10.0));
-  float fr = fwidth(r) + 1e-5;
   float r0 = mix(uTick.x + (uTick.y - uTick.x) * 0.45, uTick.x, major);
   float band = smoothstep(r0 - fr, r0 + fr, r) * (1.0 - smoothstep(uTick.y - fr, uTick.y + fr, r));
   float edge = 1.0 - smoothstep(0.0, fr * 1.5, abs(r - uTick.y - 0.004));

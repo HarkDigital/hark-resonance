@@ -2,9 +2,12 @@ import { el, rise, setRise } from '../../core/dom'
 import { PROCESS, STATS } from '../../content'
 
 /*
- * The Desk's HUD: headline, a four-row channel list (the process) whose
- * active row opens to show its text, and a three-up stats row that lines up
- * under the bridge readouts.
+ * The Desk's HUD: eyebrow + headline (the original site's own process line),
+ * a four-row channel list (the process) whose active row opens to show its
+ * text, and a three-up stats row that lines up under the bridge readouts.
+ *
+ * Every row stays readable (≥ 4.5:1 on paper); the current step is marked by
+ * its lit LED, ink and weight rather than by fading the others.
  */
 
 /** The three stats the bridge shows, in bridge order. */
@@ -14,6 +17,8 @@ export class DeskHud {
   root: HTMLElement
   /** paper light-falloff behind the copy column (opacity driven per frame) */
   scrim: HTMLElement
+  /** portrait only: paper under the headline, up from the first frame (opacity driven per frame) */
+  scrimHead: HTMLElement
   private eyebrow: HTMLElement
   private title: HTMLElement
   private list: HTMLElement
@@ -22,16 +27,20 @@ export class DeskHud {
   private statsEyebrow: HTMLElement
   private statItems: { v: HTMLElement; l: HTMLElement }[] = []
   private lastBox = ''
-  /** free vertical band between the headline and the list, in px (portrait framing) */
-  band = { top: 0, bottom: 0, statsTop: 0, headTop: 0 }
+  /**
+   * Free vertical band between the headline and the list, in px (portrait
+   * framing): top = headline bottom, bottom = list top, floor = list bottom.
+   */
+  band = { top: 0, bottom: 0, floor: 0, statsTop: 0, headTop: 0 }
 
   constructor(stage: HTMLElement) {
     this.root = el('div', 'pr', undefined, stage)
     this.scrim = el('div', 'pr-scrim', undefined, this.root)
+    this.scrimHead = el('div', 'pr-scrim pr-scrim--head', undefined, this.root)
 
     const head = el('div', 'pr-head', undefined, this.root)
-    this.eyebrow = el('p', 'hud-eyebrow pr-eyebrow', 'Process', head)
-    this.title = rise(el('h2', 'hud-h2 pr-title', undefined, head), 'How we <em>work.</em>')
+    this.eyebrow = el('p', 'hud-eyebrow pr-eyebrow', 'How we work', head)
+    this.title = rise(el('h2', 'hud-h2 pr-title', undefined, head), 'We listen first.<br><em>Then we build.</em>')
 
     this.list = el('ol', 'pr-list', undefined, this.root)
     PROCESS.forEach((p, i) => {
@@ -54,6 +63,7 @@ export class DeskHud {
       if (!h || !Number.isFinite(top + bottom)) return
       this.band.top = top
       this.band.bottom = bottom
+      this.band.floor = bottom + this.list.offsetHeight
       this.band.headTop = head.offsetTop
       this.band.statsTop = this.stats ? this.stats.offsetTop : 0
       this.root.style.setProperty('--pr-head-b', `${Math.round(top)}px`)

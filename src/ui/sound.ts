@@ -20,12 +20,29 @@ import type { EngineState } from '../core/Engine'
  *   cut()    tape-stop pitch-down + a soft felt thump
  *   blip()   a tiny tactile click for nav hover
  *
- * Off by default. Audio only ever starts from a user gesture; a remembered
- * "on" preference waits for the first click / tap / key before starting.
+ * Off by default. The loader asks first-time visitors ("Play with sound" /
+ * "Enter quietly", dispatched here as a 'hark:audio' event from that click),
+ * and the answer is remembered. Audio only ever starts from a user gesture: a
+ * remembered "on" waits for the first real activation (a pointer press or tap,
+ * or Enter / Space on a control; never Tab, Shift or scrolling keys).
  * Faded out and suspended while the tab is hidden.
  */
 
-const STORE_KEY = 'hark-resonance:audio'
+export const STORE_KEY = 'hark-resonance:audio'
+
+/** The remembered choice: true (on), false (off), or null when never asked. */
+export function storedAudio(): boolean | null {
+  try {
+    const v = localStorage.getItem(STORE_KEY)
+    return v === '1' ? true : v === '0' ? false : null
+  } catch {
+    return null
+  }
+}
+
+/** keys that activate a focused control; everything else (Tab, Shift, arrows, PageDown…) is navigation */
+const ACTIVATE_KEYS = new Set(['Enter', ' ', 'Spacebar'])
+const CONTROL = 'a[href], button, [role="button"], [role="switch"], summary, input, select, textarea'
 const MASTER_LEVEL = 0.5
 const TONE_MAX = 0.1
 /** a chapter that stops sending 'hark:tone' without a level 0 gets released after this */
@@ -187,6 +204,11 @@ export class Sound {
       this.hidden = document.hidden
       this.applyRunning()
     })
+    // the loader's sound gate: an explicit choice, made with a click
+    window.addEventListener('hark:audio', e => {
+      const d = (e as CustomEvent<{ on?: boolean }>).detail
+      if (d && typeof d.on === 'boolean') this.set(d.on)
+    })
     window.addEventListener('hark:tone', e => {
       const d = (e as CustomEvent<{ hz?: number; level?: number }>).detail
       if (d && typeof d.hz === 'number') this.tone(d.hz, d.level ?? 0)
@@ -197,6 +219,20 @@ export class Sound {
   toggle() {
     this.armed = false
     this.setEnabled(!this.enabled)
+  }
+
+  /** Set sound on/off and remember the choice (even when it is unchanged). */
+  set(on: boolean) {
+    this.armed = false
+    this.setEnabled(on)
+    this.persist(on)
+  }
+
+  /** Release any requested tone at once (e.g. while the scene is covered and chapters stop updating). */
+  hush() {
+    if (this.toneLevel === 0) return
+    this.toneLevel = 0
+    this.applyTone()
   }
 
   /** Current output level 0..1 (for the chrome's LED ladder). 0 while muted. */
@@ -357,15 +393,19 @@ export class Sound {
   private setEnabled(on: boolean) {
     if (on === this.enabled) return
     this.enabled = on
+    this.persist(on)
+    setAudioSession(on ? 'playback' : 'auto')
+    if (on) this.ensureGraph()
+    this.applyRunning()
+    for (const fn of this.onChange) fn(on)
+  }
+
+  private persist(on: boolean) {
     try {
       localStorage.setItem(STORE_KEY, on ? '1' : '0')
     } catch {
       /* ignore */
     }
-    setAudioSession(on ? 'playback' : 'auto')
-    if (on) this.ensureGraph()
-    this.applyRunning()
-    for (const fn of this.onChange) fn(on)
   }
 
   /** Resume + fade in, or fade out + suspend, based on enabled/hidden. */
@@ -407,9 +447,14 @@ export class Sound {
   private waitForGesture() {
     if (this.gestureBound) return
     this.gestureBound = true
-    const events = ['pointerdown', 'keydown', 'touchend'] as const
+    const events = ['pointerdown', 'click', 'touchend', 'keydown'] as const
     const handler = (e: Event) => {
-      if (e instanceof KeyboardEvent && (e.key === 'Escape' || e.key === 'Tab' || e.metaKey || e.ctrlKey || e.altKey)) return
+      // keyboard: only Enter / Space aimed at a control counts as "play"; Tab,
+      // Shift+Tab, arrows, PageDown and Space-to-scroll are just moving around
+      if (e instanceof KeyboardEvent) {
+        if (!ACTIVATE_KEYS.has(e.key) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return
+        if (!(e.target as Element | null)?.closest?.(CONTROL)) return
+      }
       for (const ev of events) window.removeEventListener(ev, handler, true)
       this.gestureBound = false
       const onToggle = (e.target as Element | null)?.closest?.('[data-sound-toggle]')

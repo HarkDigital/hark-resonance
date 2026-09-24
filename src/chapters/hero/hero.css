@@ -31,27 +31,43 @@
   transition-delay: 0.08s;
 }
 
-/* ---------- the signal statement (top right) ---------- */
+/* ---------- room tone: a sleeve note, bottom left above the audio switch ---------- */
 .stage-hero .hero-manifesto {
   position: absolute;
-  top: var(--safe-top);
-  right: var(--gutter);
-  width: min(30ch, 34vw);
+  left: var(--gutter);
+  bottom: calc(var(--safe-bottom) + 6px);
+  width: min(32ch, 30vw);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  isolation: isolate;
+}
+/* a soft paper pool so the copy reads over the lit foam (≥ 4.5:1 on every wedge) */
+.stage-hero .hero-manifesto::before {
+  content: '';
+  position: absolute;
+  inset: -34px -48px -30px -40px;
+  z-index: -1;
+  border-radius: 48px;
+  background: rgba(238, 235, 228, 0.84);
+  filter: blur(18px);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.stage-hero .hero-manifesto.is-in::before {
+  opacity: 1;
 }
 .stage-hero .hero-manifesto__text {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: clamp(15px, 1.2vw, 18px);
+  font-size: clamp(15px, 1.15vw, 18px);
   line-height: 1.42;
   letter-spacing: -0.01em;
   font-weight: 450;
   color: var(--ink);
   text-wrap: pretty;
 }
-.stage-hero .hero-manifesto__text .rise-w > span {
+.stage-hero .hero-manifesto__text.is-in .rise-w > span {
   transition-delay: calc(0.12s + var(--i, 0) * 16ms);
 }
 
@@ -65,6 +81,17 @@
   gap: 12px;
   translate: -50% 0;
   white-space: nowrap;
+  isolation: isolate;
+}
+/* a small paper pool: the hint often lands on the walkway rails */
+.stage-hero .hero-hint::before {
+  content: '';
+  position: absolute;
+  inset: -12px -22px;
+  z-index: -1;
+  border-radius: 999px;
+  background: rgba(238, 235, 228, 0.78);
+  filter: blur(8px);
 }
 .stage-hero .hero-hint__label {
   color: var(--ink);
@@ -106,8 +133,8 @@
   background: rgba(247, 245, 240, 0.78);
   border: 1px solid var(--line);
   border-radius: 12px;
-  backdrop-filter: blur(12px) saturate(1.1);
   -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.1);
 }
 .stage-hero .hero-meter__head,
 .stage-hero .hero-meter__foot {
@@ -177,67 +204,179 @@
   box-shadow: var(--signal-glow);
 }
 
-/* ---------- payoff ---------- */
-/* a soft paper haze under the headline so the type sits on the room, not in it */
+/* ---------- payoff: the album cover ----------
+   The mark hangs centre-high; the tagline is its liner credit, centred
+   beneath it. --cap-top (set from the settled camera) is where the mark's
+   lower edge lands on screen, so the caption always clears it. */
 .stage-hero .hero-scrim {
   position: absolute;
-  left: 0;
-  bottom: 0;
-  width: min(1100px, 80vw);
-  height: 78%;
-  background: radial-gradient(ellipse 70% 60% at 22% 72%, rgba(238, 235, 228, 0.62), rgba(238, 235, 228, 0.3) 55%, rgba(238, 235, 228, 0) 100%);
+  left: 50%;
+  top: calc(var(--cap-top, 58%) + clamp(18px, 3.2vh, 40px));
+  width: min(1240px, 110vw);
+  height: max(300px, 40vh);
+  translate: -50% -24%;
+  background: radial-gradient(closest-side, rgba(238, 235, 228, 0.86), rgba(238, 235, 228, 0.7) 50%, rgba(238, 235, 228, 0));
   opacity: 0;
-  transition: opacity 0.8s ease;
+  transition: opacity 0.7s ease;
 }
 .stage-hero .hero-scrim.is-in {
   opacity: 1;
 }
+/* the sleeve: four crop marks around a square between the chrome bands */
+.stage-hero .hero-sleeve {
+  --c: rgba(14, 14, 15, 0.42);
+  --l: 20px;
+  position: absolute;
+  left: 50%;
+  top: calc(var(--safe-top) - 4px);
+  bottom: calc(var(--safe-bottom) + 6px);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background:
+    linear-gradient(var(--c), var(--c)) left top / var(--l) 1px,
+    linear-gradient(var(--c), var(--c)) left top / 1px var(--l),
+    linear-gradient(var(--c), var(--c)) right top / var(--l) 1px,
+    linear-gradient(var(--c), var(--c)) right top / 1px var(--l),
+    linear-gradient(var(--c), var(--c)) left bottom / var(--l) 1px,
+    linear-gradient(var(--c), var(--c)) left bottom / 1px var(--l),
+    linear-gradient(var(--c), var(--c)) right bottom / var(--l) 1px,
+    linear-gradient(var(--c), var(--c)) right bottom / 1px var(--l);
+  background-repeat: no-repeat;
+  opacity: 0;
+  scale: 1.03;
+  transition:
+    opacity 0.5s ease,
+    scale 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-hero .hero-sleeve.is-in {
+  opacity: 1;
+  scale: 1;
+  transition-delay: 0.3s;
+}
 .stage-hero .hero-payoff {
   position: absolute;
   left: var(--gutter);
-  bottom: var(--safe-bottom);
+  right: var(--gutter);
+  top: calc(var(--cap-top, 58%) + clamp(18px, 3.2vh, 40px));
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 22px;
-  max-width: min(62vw, 980px);
+  align-items: center;
+  text-align: center;
+  gap: clamp(12px, 2vh, 20px);
+}
+/* the credit line: ── HARK DIGITAL DESIGN · PHILADELPHIA ── */
+.stage-hero .hero-credit {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--ink);
+  letter-spacing: 0.18em;
+}
+.stage-hero .hero-credit::before,
+.stage-hero .hero-credit::after {
+  content: '';
+  flex: none;
+  width: clamp(18px, 3vw, 40px);
+  height: 1px;
+  background: currentColor;
+  opacity: 0.45;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.35s ease;
+}
+.stage-hero .hero-credit::after {
+  transform-origin: left;
+}
+/* the rules draw outward from the credit as it arrives */
+.stage-hero .hero-credit.is-in::before,
+.stage-hero .hero-credit.is-in::after {
+  transform: none;
+  transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s;
+}
+.stage-hero .hero-credit__text.is-in .rise-w > span {
+  transition-delay: calc(0.06s + var(--i, 0) * 22ms);
 }
 .stage-hero .hero-title {
-  font-size: clamp(3.2rem, 8.4vw, 9.4rem);
-  line-height: 0.88;
+  font-size: clamp(2.4rem, min(4.6vw, 7.6vh), 5.8rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+/* the words ride in just behind the echo front */
+.stage-hero .hero-title.is-in .rise-w > span {
+  transition-delay: calc(0.18s + var(--i, 0) * 38ms);
 }
 .stage-hero .hero-ctas {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 26px;
+  margin-top: clamp(0px, 0.8vh, 8px);
 }
 .stage-hero .hero-ctas.is-in {
-  transition-delay: 0.35s;
+  transition-delay: 0.42s;
 }
-.stage-hero .hero-ctas .hud-btn--ghost {
-  background: rgba(247, 245, 240, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+/* hidden CTAs must not catch clicks (stage links take pointer events) */
+.stage-hero .hero-ctas:not(.is-in) {
+  visibility: hidden;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease,
+    visibility 0s linear 0.3s;
+}
+/* the second CTA is a quiet text link, not a second pill */
+.stage-hero .hero-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 2px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  background: linear-gradient(currentColor, currentColor) 0 calc(100% - 11px) / 100% 1px no-repeat;
+  transition: background-size 0.3s ease;
+}
+.stage-hero .hero-link::after {
+  content: '\2192';
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-hero .hero-link:hover::after,
+.stage-hero .hero-link:focus-visible::after {
+  transform: translateX(4px);
+}
+
+/* portrait screens: the sleeve note sits under the chrome, clear of the walkway rails */
+@media (orientation: portrait), (max-width: 767px) {
+  .stage-hero .hero-manifesto {
+    top: var(--safe-top);
+    bottom: auto;
+    width: min(40ch, calc(100vw - 2 * var(--gutter)));
+  }
 }
 
 @media (max-width: 767px) {
   .stage-hero .hero-manifesto {
     width: auto;
-    left: var(--gutter);
     right: var(--gutter);
     gap: 10px;
+  }
+  .stage-hero .hero-hint {
+    bottom: calc(var(--safe-bottom) + 10px);
+  }
+  .stage-hero .hero-manifesto::before {
+    inset: -26px -30px -24px -30px;
+    border-radius: 36px;
   }
   .stage-hero .hero-manifesto__text {
     font-size: 15px;
     max-width: 34ch;
-  }
-  .stage-hero .hero-payoff {
-    max-width: none;
-    right: var(--gutter);
-    gap: 18px;
-  }
-  .stage-hero .hero-title {
-    font-size: clamp(2.9rem, 13.2vw, 4.4rem);
   }
   .stage-hero .hero-meter {
     width: auto;
@@ -248,15 +387,38 @@
     height: 16px;
     margin: 8px 0;
   }
+}
+
+/* portrait: the same sleeve, stacked — the tagline breaks over two lines */
+@media (orientation: portrait) {
+  .stage-hero .hero-sleeve {
+    display: none;
+  }
+  .stage-hero .hero-title {
+    font-size: clamp(2.7rem, 12vw, 6.2rem);
+    max-width: 9.5em;
+  }
   .stage-hero .hero-scrim {
-    width: 100%;
-    height: 62%;
-    background: linear-gradient(0deg, rgba(238, 235, 228, 0.72), rgba(238, 235, 228, 0.45) 55%, rgba(238, 235, 228, 0));
+    width: 150vw;
+    height: min(62vh, 560px);
+    translate: -50% -20%;
+  }
+}
+@media (orientation: portrait) and (max-width: 767px) {
+  .stage-hero .hero-credit {
+    letter-spacing: 0.14em;
+    gap: 10px;
+  }
+  .stage-hero .hero-ctas {
+    gap: 4px 22px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .stage-hero .hero-hint__glyph svg {
     animation: none;
+  }
+  .stage-hero .hero-sleeve {
+    scale: 1;
   }
 }

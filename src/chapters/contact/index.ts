@@ -17,18 +17,27 @@ import {
 import './contact.css'
 
 /*
- * SAY HELLO — the final chapter (1.5 vh, nav lands at 0.3).
+ * SAY HELLO — track 07, the last cut on side B (1.5 vh, nav lands at 0.3).
+ * Follows The Desk.
  *
  * The Hark mark as FERROFLUID: glossy black magnetic liquid in a machined
  * aluminium dish with a bone ceramic well. The visitor's cursor is the magnet.
  *
- *   0.00–0.05  a drop has just landed: rings run across a round puddle while
- *              the camera cranes down from overhead (plays against the cut)
- *   0.03–0.26  the puddle flows outward into the mark
- *   0.20–0.38  the field kicks once: spikes flicker up across the whole mark,
+ * The copy is set as the back of the sleeve, arranged around the dish:
+ * the address itself is the record's title line (the primary link, the
+ * biggest type on the page) under a small "Say hello." heading, and the
+ * rest is a liner-notes credit block (Write to / Elsewhere / Pressed in).
+ * Landscape: dish top left, title line along the bottom, credits down the
+ * right. Portrait: dish on top, title line and credits stacked under it.
+ *
+ *   0.00–0.12  a drop has just landed: rings run across a round puddle while
+ *              the camera pulls back from overhead (plays against the cut)
+ *   0.03–0.21  the puddle flows outward into the mark
+ *   0.08–0.18  the sleeve copy rises: heading, the address, then the credits
+ *   0.15–0.33  the field kicks once: spikes flicker up across the whole mark,
  *              overshoot, and settle (damped spring, derived from local)
  *   0.26–1.00  hold: Rosensweig spikes rise under the magnet (pointer / last
- *              touch; a slow autonomous orbit when idle), lean toward it and
+ *              touch; a slow autonomous tour when idle), lean toward it and
  *              trail behind it on a springy lag
  *   0.84–1.00  sign-off: the camera cranes up over the dish, "End of side B"
  */
@@ -117,12 +126,15 @@ export default function create(): Chapter {
   const hud = {} as {
     probe: HTMLElement
     wrap: HTMLElement
-    col: HTMLElement
+    head: HTMLElement
+    credits: HTMLElement
     eyebrow: HTMLElement
     title: HTMLElement
+    addr: HTMLElement
+    addrTxt: HTMLElement
     body: HTMLElement
-    cta: HTMLElement
-    bottom: HTMLElement
+    rows: HTMLElement
+    out: HTMLElement
     end: HTMLElement
     endTxt: HTMLElement
     endSub: HTMLElement
@@ -134,6 +146,7 @@ export default function create(): Chapter {
     coText: string
     isEnd: boolean
   }
+  type Rect = { x0: number; y0: number; x1: number; y1: number }
   /** layout, measured only when something resizes */
   const box = {
     dirty: true,
@@ -142,87 +155,129 @@ export default function create(): Chapter {
     safeTop: 90,
     safeBottom: 810,
     gutter: 24,
-    colRight: 600,
+    /** landscape: top of the title block (eyebrow) and left edge of the credits */
+    headTop: 600,
+    creditsLeft: 1000,
+    /** portrait: top of the stacked copy */
     wrapTop: 500,
-    bottomTop: 780,
     endH: 34,
     calloutW: 150,
+    calloutH: 40,
+    /** where the callout label must never land (copy blocks), in CSS px */
+    avoid: [] as Rect[],
   }
 
   function buildHud(stage: HTMLElement) {
     const probe = el('div', 'ct-probe', undefined, stage)
     probe.setAttribute('aria-hidden', 'true')
     const wrap = el('div', 'ct-wrap', undefined, stage)
-    const col = el('div', 'ct-col', undefined, wrap)
 
-    const eyebrow = rise(el('p', 'hud-eyebrow ct-eyebrow', undefined, col), CONTACT.eyebrow)
+    // ---- the title block: eyebrow, "Say hello.", and the address as the title line
+    const head = el('div', 'ct-head', undefined, wrap)
+    const eyebrow = rise(el('p', 'hud-eyebrow ct-eyebrow', undefined, head), CONTACT.eyebrow)
     const words = CONTACT.title.split(' ')
     const last = words.pop() ?? ''
-    const title = rise(el('h2', 'hud-title ct-title', undefined, col), `${words.join(' ')} <em>${last}</em>`)
-    const body = rise(el('p', 'hud-body ct-body', undefined, col), CONTACT.body)
+    const title = rise(el('h2', 'hud-h2 ct-title', undefined, head), `${words.join(' ')} <em>${last}</em>`)
 
-    const cta = el('div', 'ct-cta ct-fade', undefined, col)
-    const mail = el('a', 'hud-btn ct-mail', undefined, cta)
-    mail.href = CONTACT.href
-    el('span', 'ct-mail-addr', BRAND.email, mail)
-    el('span', 'ct-mail-arrow', '→', mail).setAttribute('aria-hidden', 'true')
+    const addr = el('a', 'ct-addr', undefined, head)
+    addr.href = CONTACT.href
+    addr.setAttribute('aria-label', `Email ${BRAND.email}`)
+    const at = BRAND.email.indexOf('@')
+    const addrTxt = rise(
+      el('span', 'ct-addr-txt', undefined, addr),
+      at > 0 ? `${BRAND.email.slice(0, at)}<em>@</em>${BRAND.email.slice(at + 1)}` : BRAND.email,
+    )
+    const go = el('span', 'ct-addr-go', undefined, addr)
+    go.setAttribute('aria-hidden', 'true')
+    go.innerHTML = `<svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h13M13 6.5 18.5 12 13 17.5"/></svg>`
 
-    const copyBtn = el('button', 'hud-btn hud-btn--ghost ct-copy', undefined, cta)
+    // ---- the credit block: liner note + Write to / Elsewhere / Pressed in
+    const credits = el('div', 'ct-credits', undefined, wrap)
+
+    // sign-off: floats above the credits (landscape) or between dish and copy (portrait)
+    const end = el('p', 'ct-end', undefined, credits)
+    end.setAttribute('aria-hidden', 'true')
+    const rec = el('span', 'ct-rec', undefined, end)
+    rec.innerHTML = RECORD_SVG
+    const endWords = el('span', 'ct-end-words', undefined, end)
+    const endTxt = rise(el('span', 'ct-end-txt', undefined, endWords), 'End of side B')
+    const endSub = rise(el('span', 'ct-end-sub', undefined, endWords), 'Thanks for listening.')
+
+    const body = rise(el('p', 'hud-body ct-body', undefined, credits), CONTACT.body)
+
+    const rows = el('dl', 'ct-rows ct-fade', undefined, credits)
+    const row = (label: string, mod: string) => {
+      const r = el('div', `ct-row ct-row--${mod}`, undefined, rows)
+      el('dt', 'ct-row-k', label, r)
+      return el('dd', 'ct-row-v', undefined, r)
+    }
+
+    const write = row('Write to', 'write')
+    el('span', 'ct-row-addr', BRAND.email, write)
+    const copyBtn = el('button', 'ct-copy', undefined, write)
     copyBtn.type = 'button'
     copyBtn.setAttribute('aria-label', `Copy ${BRAND.email}`)
     const lbl = el('span', 'ct-copy-lbl', undefined, copyBtn)
-    el('span', 'ct-copy-idle', 'Copy email', lbl)
+    // "Copy" beside the written address; "Copy email" where the address is hidden
+    const idle = el('span', 'ct-copy-idle', 'Copy', lbl)
+    el('span', 'ct-copy-more', ' email', idle)
     el('span', 'ct-copy-done', 'Copied', lbl)
     const status = el('span', 'sr-only', '', copyBtn)
     status.setAttribute('aria-live', 'polite')
     let resetT = 0
-    copyBtn.addEventListener('click', async () => {
-      const ok = await copyText(BRAND.email)
+    const flash = (ok: boolean, say: boolean) => {
       window.clearTimeout(resetT)
       copyBtn.classList.toggle('is-copied', ok)
       copyBtn.classList.toggle('is-failed', !ok)
-      status.textContent = ok ? 'Email address copied' : 'Copy failed'
+      if (say) status.textContent = ok ? 'Email address copied' : 'Copy failed'
       resetT = window.setTimeout(() => {
         copyBtn.classList.remove('is-copied', 'is-failed')
         status.textContent = ''
       }, 1800)
+    }
+    copyBtn.addEventListener('click', async () => flash(await copyText(BRAND.email), true))
+    // the keyboard layer has its own copy button: light this one too, so a
+    // sighted keyboard user sees the copy land (the layer announces it itself)
+    document.addEventListener('click', e => {
+      const t = e.target as Element | null
+      if (!t?.closest?.('[data-copy-email]')) return
+      const read = (n: number) =>
+        window.setTimeout(() => {
+          const s = document.querySelector('[data-copy-status]')?.textContent ?? ''
+          if (/^copied/i.test(s)) flash(true, false)
+          else if (s) flash(false, false)
+          else if (n < 6) read(n + 1)
+        }, 60)
+      read(0)
     })
 
-    // sign-off: in the copy column on desktop, floated above the copy (under the dish) on phones
-    const end = el('p', 'ct-end', undefined, col)
-    end.setAttribute('aria-hidden', 'true')
-    const rec = el('span', 'ct-rec', undefined, end)
-    rec.innerHTML = RECORD_SVG
-    const endTxt = rise(el('span', 'ct-end-txt', undefined, end), 'End of side B')
-    const endSub = rise(el('span', 'ct-end-sub', undefined, end), 'Thanks for listening.')
-
-    const bottom = el('div', 'ct-bottom ct-fade', undefined, wrap)
-    const links = el('nav', 'ct-links', undefined, bottom)
-    links.setAttribute('aria-label', 'Contact and site links')
-    const addLink = (label: string, href: string, ext: boolean) => {
-      const a = el('a', 'ct-link', label, links)
+    const elsewhere = row('Elsewhere', 'else')
+    const addLink = (label: string, href: string) => {
+      const a = el('a', 'ct-link', label, elsewhere)
       a.href = href
-      if (ext) {
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-        el('span', 'ct-ext', '↗', a).setAttribute('aria-hidden', 'true')
-        el('span', 'sr-only', ' (opens in a new tab)', a)
-      }
-      el('span', 'ct-sep', '·', links).setAttribute('aria-hidden', 'true')
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      el('span', 'ct-ext', '↗', a).setAttribute('aria-hidden', 'true')
+      el('span', 'sr-only', ' (opens in a new tab)', a)
     }
-    addLink('Email', `mailto:${BRAND.email}`, false)
-    addLink('Classic site', BRAND.classicSite, true)
-    addLink('Orbit concept', BRAND.orbitSite, true)
-    const top = el('button', 'ct-link ct-top', 'Back to top', links)
+    addLink('Classic site', BRAND.classicSite)
+    addLink('Orbit concept', BRAND.orbitSite)
+
+    const pressed = row('Pressed in', 'pressed')
+    // wraps only at the separators, never inside "est. 2016"
+    const loc = el('span', 'ct-row-loc', undefined, pressed)
+    BRAND.locale.split(' · ').forEach((part, i) => {
+      if (i) loc.append(' · ')
+      el('span', 'ct-nw', part, loc)
+    })
+
+    const out = el('div', 'ct-out ct-fade', undefined, credits)
+    const top = el('button', 'ct-link ct-top', 'Back to top', out)
     top.type = 'button'
     el('span', 'ct-top-arrow', '↑', top).setAttribute('aria-hidden', 'true')
     el('span', 'ct-top-led', undefined, top).setAttribute('aria-hidden', 'true')
     top.addEventListener('click', () => window.__hark?.goto(0))
-
-    const foot = el('p', 'ct-foot', undefined, bottom)
-    el('span', 'ct-foot-name', `© 2026 ${BRAND.name}`, foot)
-    el('span', 'ct-foot-sep', ' · ', foot)
-    el('span', 'ct-foot-loc', BRAND.locale, foot)
+    el('span', 'ct-copyright', `© 2026 ${BRAND.name}`, out)
 
     const callout = new Callout(stage, { side: 'right', offset: { x: 64, y: -58 } })
     callout.root.classList.add('ct-callout')
@@ -234,12 +289,15 @@ export default function create(): Chapter {
     Object.assign(hud, {
       probe,
       wrap,
-      col,
+      head,
+      credits,
       eyebrow,
       title,
+      addr,
+      addrTxt,
       body,
-      cta,
-      bottom,
+      rows,
+      out,
       end,
       endTxt,
       endSub,
@@ -256,10 +314,14 @@ export default function create(): Chapter {
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(dirty)
       ro.observe(wrap)
-      ro.observe(col)
+      ro.observe(head)
+      ro.observe(credits)
       ro.observe(end)
       ro.observe(probe)
-      new ResizeObserver(() => (box.calloutW = callout.label.offsetWidth || box.calloutW)).observe(callout.label)
+      new ResizeObserver(() => {
+        box.calloutW = callout.label.offsetWidth || box.calloutW
+        box.calloutH = callout.label.offsetHeight || box.calloutH
+      }).observe(callout.label)
     }
     window.addEventListener('resize', dirty)
     document.fonts?.ready.then(dirty).catch(() => {})
@@ -267,6 +329,11 @@ export default function create(): Chapter {
 
   function isPortrait(frame: Frame) {
     return frame.width < 768 || frame.width / Math.max(1, frame.height) < 0.9
+  }
+
+  const rectOf = (n: Element, pad = 0): Rect => {
+    const r = n.getBoundingClientRect()
+    return { x0: r.left - pad, y0: r.top - pad, x1: r.right + pad, y1: r.bottom + pad }
   }
 
   function measure(frame: Frame) {
@@ -279,11 +346,15 @@ export default function create(): Chapter {
     box.safeTop = p.top
     box.safeBottom = p.bottom
     box.gutter = p.left
-    const c = hud.col.getBoundingClientRect()
-    box.colRight = c.right
+    const head = rectOf(hud.head)
+    const credits = rectOf(hud.credits)
+    box.headTop = head.y0
+    box.creditsLeft = credits.x0
     box.wrapTop = hud.wrap.getBoundingClientRect().top
-    box.bottomTop = hud.bottom.getBoundingClientRect().top
     box.endH = hud.end.offsetHeight || 34
+    // the callout keeps off the copy (the sign-off's box counts: it appears late)
+    box.avoid.length = 0
+    box.avoid.push(rectOf(hud.head, 12), rectOf(hud.credits, 12), rectOf(hud.end, 10))
   }
 
   // ---- camera fitting ------------------------------------------------------
@@ -385,10 +456,11 @@ export default function create(): Chapter {
       const y1 = Math.max(y0 + 80, box.wrapTop - box.endH - 22)
       return { x0: g, x1: W - g, y0, y1 }
     }
-    const x0 = Math.max(box.colRight + W * 0.05, W * 0.47)
-    const x1 = W - box.gutter - W * 0.015
-    const y0 = box.safeTop + 4
-    const y1 = Math.max(y0 + 120, box.bottomTop - 26)
+    // the sleeve's art panel: above the title line, left of the credits
+    const x0 = box.gutter
+    const x1 = Math.max(x0 + 160, box.creditsLeft - Math.max(28, W * 0.035))
+    const y0 = box.safeTop + 2
+    const y1 = Math.max(y0 + 120, box.headTop - Math.max(18, H * 0.025))
     return { x0, x1, y0, y1 }
   }
 
@@ -399,14 +471,40 @@ export default function create(): Chapter {
     return { x: (scr.x * 0.5 + 0.5) * frame.width, y: (-scr.y * 0.5 + 0.5) * frame.height }
   }
 
+  const toggle = (n: HTMLElement, on: boolean) => {
+    if (n.classList.contains('is-in') !== on) n.classList.toggle('is-in', on)
+  }
+
+  type Side = 'left' | 'right'
+  /** the side Callout will actually draw on (it flips a label that runs off screen, margin 12) */
+  function drawnSide(ax: number, side: Side, ox: number, W: number): Side {
+    const lw = box.calloutW
+    if (side === 'right' && ax + ox + 8 + lw > W - 12) return 'left'
+    if (side === 'left' && ax - ox - 8 - lw < 12) return 'right'
+    return side
+  }
+
+  /** does the label, where Callout will draw it (flipped + clamped), stay clear of the copy? */
+  function calloutClear(ax: number, ly: number, side: Side, ox: number, W: number) {
+    const lw = box.calloutW
+    const raw = side === 'right' ? ax + ox + 8 : ax - ox - 8 - lw
+    const x0 = clamp(raw, 12, W - 12 - lw)
+    const x1 = x0 + lw
+    const y0 = ly - 10
+    const y1 = y0 + box.calloutH
+    for (const r of box.avoid) if (x0 < r.x1 && x1 > r.x0 && y0 < r.y1 && y1 > r.y0) return false
+    return true
+  }
+
   function updateHud(l: number, frame: Frame, ctx: ChapterContext, gate: number) {
-    setRise(hud.eyebrow, l > 0.045)
-    setRise(hud.title, l > 0.065)
-    setRise(hud.body, l > 0.09)
-    const ctaOn = l > 0.12
-    if (hud.cta.classList.contains('is-in') !== ctaOn) hud.cta.classList.toggle('is-in', ctaOn)
-    const botOn = l > 0.2
-    if (hud.bottom.classList.contains('is-in') !== botOn) hud.bottom.classList.toggle('is-in', botOn)
+    // the sleeve copy rises once the camera has pulled back (zoom settles by 0.12)
+    setRise(hud.eyebrow, l > 0.08)
+    setRise(hud.title, l > 0.09)
+    setRise(hud.addrTxt, l > 0.1)
+    toggle(hud.addr, l > 0.1)
+    setRise(hud.body, l > 0.12)
+    toggle(hud.rows, l > 0.14)
+    toggle(hud.out, l > 0.16)
     const isEnd = l > 0.84
     setRise(hud.endTxt, isEnd)
     setRise(hud.endSub, isEnd)
@@ -423,20 +521,26 @@ export default function create(): Chapter {
     const co = gate * (l > 0.24 ? 1 : 0)
     const c = hud.callout
     const a = toScreen(anchor, ctx.camera, frame)
-    const lw = box.calloutW
-    let side: 'left' | 'right' = 'right'
-    if (portrait) side = a.x > frame.width / 2 ? 'left' : 'right'
+    const W = frame.width
     const ox = portrait ? 52 : 108
-    if (side === 'right' && a.x + ox + 8 + lw > frame.width - box.gutter) side = 'left'
-    if (side === 'left' && a.x - ox - 8 - lw < box.gutter) side = 'right'
+    // keep the label under the header band
+    const oy = Math.max(portrait ? -30 : -26, box.safeTop + 14 - a.y)
+    const flip = (x: Side): Side => (x === 'right' ? 'left' : 'right')
+    let side = drawnSide(a.x, portrait && a.x > W / 2 ? 'left' : 'right', ox, W)
+    let room = 1
+    if (!calloutClear(a.x, a.y + oy, side, ox, W)) {
+      const alt = drawnSide(a.x, flip(side), ox, W)
+      if (alt !== side && calloutClear(a.x, a.y + oy, alt, ox, W)) side = alt
+      else room = 0
+    }
+    // the anchor itself never sits on the copy
+    for (const r of box.avoid) if (a.x > r.x0 && a.x < r.x1 && a.y > r.y0 && a.y < r.y1) room = 0
+    // while hidden, don't flip the fading label across the leader
+    if (room === 0) side = c.side
     c.side = side
     c.offset.x = ox
-    // keep the label under the header band
-    c.offset.y = Math.max(portrait ? -30 : -26, box.safeTop + 14 - a.y)
+    c.offset.y = oy
     c.root.classList.toggle('is-left', side === 'left')
-    let room = 1
-    if (!portrait && side === 'left' && a.x - ox - 8 - lw < box.colRight + 12) room = 0
-    if (portrait && a.y > box.wrapTop - box.endH - 10) room = 0
     c.update(anchor, ctx.camera, frame.width, frame.height, co * room)
     const tesla = `${(0.12 + Math.max(0, str) * 0.36).toFixed(2)} T`
     const k = portrait
@@ -690,24 +794,28 @@ export default function create(): Chapter {
       azim = lerp(azim, 0, end) + Math.sin(frame.time * 0.13) * 0.012 * motion
       const fov = portrait ? PORTRAIT_FOV : DESK_FOV
       const r = dishRect(frame)
-      // zoom = scale the fit rect about its centre, so the dish stays centred in it
-      const zoom = lerp(1.6, 1, arr) * lerp(0.95, 0.97, end)
+      // zoom = scale the fit rect about its centre, so the dish stays centred
+      // in it; the pull-back lands (0.12) before the sleeve copy rises
+      const pull = ease.inOutCubic(segment(l, 0, 0.12))
+      const zoom = lerp(1.6, 1, pull) * lerp(0.95, 0.97, end)
       const cx = (r.x0 + r.x1) / 2
       const cy = (r.y0 + r.y1) / 2
       const hw = ((r.x1 - r.x0) / 2) * zoom
       const hh = ((r.y1 - r.y0) / 2) * zoom
       const f = fitDish(elev, azim, fov, frame.width, frame.height, cx - hw, cy - hh, cx + hw, cy + hh)
-      // while the camera is still pushed in, slide the oversized dish off the
-      // copy once the copy starts to rise (a lateral dolly, never a collision)
-      const clear = smoothstep(0.02, 0.07, l)
+      // while the camera is still pushed in, ease the oversized dish off the
+      // copy as the copy starts to rise (a dolly away, never a collision)
+      const clear = smoothstep(0.03, 0.09, l)
       if (clear > 0) {
         const b = f.bounds
         if (portrait) {
-          const over = Math.max(0, b.maxY - (box.wrapTop - 14))
+          const over = Math.max(0, b.maxY - (box.wrapTop - box.endH - 14))
           f.target.addScaledVector(fU, -over * clear * f.wpp)
         } else {
-          const over = Math.max(0, box.colRight + 28 - b.minX)
-          f.target.addScaledVector(fR, -over * clear * f.wpp)
+          // up off the title line, left off the credits
+          const overY = Math.max(0, b.maxY - (box.headTop - 12))
+          const overX = Math.max(0, b.maxX - (box.creditsLeft - 20))
+          f.target.addScaledVector(fU, -overY * clear * f.wpp).addScaledVector(fR, overX * clear * f.wpp)
         }
       }
       out.target.copy(f.target)

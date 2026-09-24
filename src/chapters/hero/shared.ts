@@ -6,7 +6,8 @@ import { smoothstep } from '../../core/math'
  *
  *   0.00–0.12  SILENCE  still room, the chrome mark turns; lights clunk on (time-based intro)
  *   0.12–0.60  SOUND    the LED pulses; pressure fronts roll through the foam
- *   0.60–0.92  PAYOFF   the room settles, camera cranes back + down; headline + CTAs
+ *   0.60–0.92  PAYOFF   the room settles; the camera squares up on the mark (album
+ *                       cover); one last echo front carries the caption in beneath it
  *   0.92–1.00  OUT      one big front rushes at the camera; the ripple cut takes over
  *
  * The pressure field is a pure function of (local, time), shared verbatim by
@@ -19,6 +20,9 @@ export const T = {
   payoffA: 0.62,
   payoffB: 0.92,
   outA: 0.905,
+  /** the liner-credit caption is on the sleeve between these */
+  captionA: 0.64,
+  captionB: 0.935,
 }
 
 /** Where the mark floats (world). The pressure source is its LED diamond. */
@@ -55,11 +59,18 @@ export const wavelet = (x: number) => (x <= 0 ? 0 : Math.exp(-3.2 * x) * Math.si
 export const envAt = (l: number) => smoothstep(0.115, 0.2, l) * (1 - smoothstep(0.5, 0.62, l))
 export const outAt = (local: number) => Math.max(0, (local - T.outA) / (1 - T.outA))
 
+/** the payoff's echo: one front, emitted when the caption is called in (runs on time, not scroll) */
+export const ECHO_SPEED = 8.5
+export const ECHO_LIFE = 2.4
+
 export interface WaveState {
   phase: number
   local: number
   amp: number
   out: number
+  /** radius of the echo front (world units) */
+  echo: number
+  echoAmp: number
 }
 
 /** Pressure (−0.4..1.1 × amp) at distance d from the source. Mirrors WAVE_GLSL.pressure. */
@@ -69,6 +80,7 @@ export function pressure(w: WaveState, d: number) {
   const a = (envAt(w.local - d / ENV_SPEED) * w.amp) / (1 + d * 0.045)
   let s = wavelet(f) * a
   if (w.out > 0) s += wavelet((w.out * OUT_REACH - d) / 3.0) * 1.35
+  if (w.echoAmp > 0) s += wavelet((w.echo - d) / 2.4) * w.echoAmp
   return s
 }
 
@@ -79,6 +91,8 @@ export function makeWaveUniforms() {
     uLocal: { value: 0 },
     uAmp: { value: 0.9 },
     uOut: { value: 0 },
+    uEcho: { value: 0 },
+    uEchoAmp: { value: 0 },
     uSrc: { value: MARK_POS.clone() },
     /** 0 dark (before the lights clunk on) .. 1 */
     uLights: { value: [0, 0, 0, 0, 0] as number[] },
@@ -98,6 +112,8 @@ uniform float uPhase;
 uniform float uLocal;
 uniform float uAmp;
 uniform float uOut;
+uniform float uEcho;
+uniform float uEchoAmp;
 uniform vec3 uSrc;
 const float LAMBDA = ${LAMBDA.toFixed(3)};
 const float ENV_SPEED = ${ENV_SPEED.toFixed(3)};
@@ -109,6 +125,7 @@ float pressure(float d) {
   float a = envAt(uLocal - d / ENV_SPEED) * uAmp / (1.0 + d * 0.045);
   float s = wavelet(f) * a;
   if (uOut > 0.0) s += wavelet((uOut * OUT_REACH - d) / 3.0) * 1.35;
+  if (uEchoAmp > 0.0) s += wavelet((uEcho - d) / 2.4) * uEchoAmp;
   return s;
 }
 `
