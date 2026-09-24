@@ -334,7 +334,14 @@ export class Engine {
       for (const l of [0.5, 0.04, 0.92]) {
         try {
           slot.chapter.update(l, this.frame, slot.ctx)
-          compiles.push(this.renderer.compileAsync(slot.chapter.group, this.camera, this.scene).catch(() => {}))
+          // compile against this chapter's lights only: take the group out of the
+          // scene (three gathers lights from both the scene and the object)
+          const g = slot.chapter.group
+          const probe = new THREE.Group()
+          this.scene.remove(g)
+          probe.add(g, this.studio.object)
+          compiles.push(this.renderer.compileAsync(probe, this.camera, this.scene).catch(() => {}))
+          this.scene.add(g, this.studio.object)
         } catch (err) {
           console.error(`[hark] chapter "${slot.def.id}" failed during compile`, err)
         }
