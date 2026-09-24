@@ -117,6 +117,7 @@ export class Engine {
   private jump: { t: number; id: string; local: number; swapped: boolean } | null = null
   /** true while something (e.g. the rotate gate) covers the scene — skip rendering */
   paused = false
+  private listenerFailed = new WeakSet<object>()
   private suppressFocusLand = false
   private tmpRight = new THREE.Vector3()
   private tmpUp = new THREE.Vector3()
@@ -464,12 +465,20 @@ export class Engine {
   start() {
     if (this.running) return
     this.running = true
+    let reported = false
     const loop = (ms: number) => {
       if (!this.running) return
+      // re-arm first: one bad frame must never stop scrolling or rendering
+      requestAnimationFrame(loop)
       this.timer.update(ms)
       this.lenis.raf(ms)
-      if (!this.paused) this.tick()
-      requestAnimationFrame(loop)
+      if (this.paused) return
+      try {
+        this.tick()
+      } catch (err) {
+        if (!reported) console.error('[hark] frame failed', err)
+        reported = true
+      }
     }
     requestAnimationFrame(loop)
   }
@@ -644,7 +653,14 @@ export class Engine {
     this.applyCamera(this.reducedMotion ? 0 : this.pose.parallax)
     this.studio.update(f, this.camera)
 
-    for (const fn of this.onFrame) fn(f, this.state)
+    for (const fn of this.onFrame) {
+      try {
+        fn(f, this.state)
+      } catch (err) {
+        if (!this.listenerFailed.has(fn)) console.error('[hark] frame listener failed', err)
+        this.listenerFailed.add(fn)
+      }
+    }
     this.renderer.info.reset()
     this.post.render(f.dt, f.time)
   }
