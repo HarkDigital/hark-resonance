@@ -16,15 +16,16 @@ Copy, services, portfolio and testimonials come from the 2026 site
 
 | # | Chapter | What happens |
 |---|---------|--------------|
-| 01 | **Listen** (`hero`) | An anechoic chamber of foam wedges; the mark floats in liquid chrome with a green LED. Pressure waves roll through the foam → *Make the internet listen.* |
+| 01 | **Listen** (`hero`) | An anechoic chamber of foam wedges; the mark floats in liquid chrome with a green LED. Pressure waves roll through the foam → *Make the internet listen.* set like an album cover |
 | 02 | **The Crate** (`work`) | *Built to be heard.* Projects as 12" sleeves in a record crate — sleeves flip forward, the record slides out and spins; then the nine more |
-| 03 | **Cymatics** (`services`) | *Eleven ways to be heard.* Sand on a vibrating Chladni plate forms a new pattern per service, finally the Hark mark |
-| 04 | **Noise Floor** (`shield`) | Jagged "hack" noise is cancelled by an anti-phase wave → *Hacked? Breathe.* → 24/7 calm |
-| 05 | **Liner Notes** (`voices`) | *We listen. They talk.* An Unknown-Pleasures ridgeline plot; each testimonial is a track |
-| 06 | **The Desk** (`process`) | Mixing-desk faders push up for Listen · Prototype · Build · Support; LED readouts show the real stats |
-| 07 | **Say Hello** (`contact`) | The mark as ferrofluid whose spikes chase your cursor; email, copy-email, links |
+| 03 | **Liner Notes** (`voices`) | *We listen. They talk.* An Unknown-Pleasures ridgeline plot; each testimonial is a cut |
+| 04 | **Cymatics** (`services`) | *Eleven ways to be heard.* Sand on a vibrating Chladni plate forms a new pattern per service, finally the Hark mark |
+| 05 | **Noise Floor** (`shield`) | A bench oscilloscope: a red intrusion trace is cancelled by a green anti-phase trace → *Hacked? Breathe.* → 24/7 |
+| 06 | **The Desk** (`process`) | *We listen first. Then we build.* Mixing-desk faders push up for Listen · Prototype · Build · Support; LED readouts show the real stats |
+| 07 | **Say Hello** (`contact`) | The mark as ferrofluid whose spikes chase your cursor; the email set as record credits |
 
-Chapter cuts are a pressure-wave ripple with a paper wash. Text reveals are a
+The loader ends with a choice — **Play with sound** or **Enter quietly** — since
+sound is the point (add `?gate` to always ask). Chapter cuts are a pressure-wave ripple with a paper wash. Text reveals are a
 word-rise. Phones held sideways get a "turn your phone upright" screen.
 Screen readers and keyboards get the whole story as linear semantic HTML
 (`src/core/srContent.ts`), and the visuals follow keyboard focus. Audio
