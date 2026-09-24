@@ -511,3 +511,30 @@ a {
   outline: 2px solid var(--signal);
   outline-offset: 3px;
 }
+
+/* ---------------- word-rise reveal (src/core/dom.ts rise/setRise) ---------------- */
+.rise .rise-w {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  /* room for descenders and italic overhang inside the clip */
+  padding: 0 0.04em 0.12em;
+  margin: 0 -0.04em -0.12em;
+}
+.rise .rise-w > span {
+  display: inline-block;
+  transform: translate3d(0, 105%, 0);
+  opacity: 0;
+  transition:
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.5s ease;
+  transition-delay: calc(var(--i, 0) * 28ms);
+}
+.rise.is-in .rise-w > span {
+  transform: none;
+  opacity: 1;
+}
+.rise:not(.is-in) .rise-w > span {
+  transition-duration: 0.35s, 0.25s;
+  transition-delay: 0s;
+}
