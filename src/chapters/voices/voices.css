@@ -1,0 +1,225 @@
+/* ------------------------------------------------------------------
+   Liner Notes (voices) — the copy column, the tracklist, the playhead.
+   Every selector is scoped under .stage-voices.
+   ------------------------------------------------------------------ */
+
+.stage-voices .vx-col {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: min(40vw, 600px);
+}
+
+.stage-voices .vx-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: clamp(18px, 2.6vh, 30px);
+}
+
+/* the LED only lights while the card is on */
+.stage-voices .vx-eyebrow::before {
+  transition:
+    opacity 0.4s ease,
+    transform 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-voices .vx-card:not(.is-on) .vx-eyebrow::before {
+  opacity: 0;
+  transform: scale(0.2);
+  transition-duration: 0.25s;
+}
+
+.stage-voices .vx-title {
+  font-size: clamp(3rem, 7.2vw, 8.2rem);
+  line-height: 0.92;
+}
+.stage-voices .vx-title em {
+  letter-spacing: -0.03em;
+}
+
+.stage-voices .vx-quote {
+  margin: 0;
+  padding: 0;
+}
+.stage-voices .vx-quote .hud-quote {
+  font-size: clamp(1.45rem, 2.65vw, 2.9rem);
+  line-height: 1.1;
+  letter-spacing: -0.012em;
+  /* hang the opening mark in the margin */
+  text-indent: -0.36em;
+  max-width: 22em;
+}
+/* text-indent inherits into the inline-block words; only the paragraph hangs */
+.stage-voices .vx-quote .rise-w,
+.stage-voices .vx-quote .rise-w > span {
+  text-indent: 0;
+}
+/* long quotes: cap the stagger so the whole quote lands in ~1.1 s (rise only;
+   the sink stays instant so the next card never overlaps a leaving one) */
+.stage-voices .vx-quote .rise.is-in .rise-w > span {
+  transition-delay: calc(min(var(--i, 0), 20) * 22ms);
+}
+
+.stage-voices .vx-rule {
+  width: 56px;
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-voices .vx-card.is-on .vx-rule {
+  transform: none;
+  transition-delay: 0.25s;
+  transition-duration: 0.9s;
+}
+
+.stage-voices .vx-credits {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.stage-voices .vx-credit {
+  display: grid;
+  grid-template-columns: 64px auto;
+  align-items: baseline;
+}
+.stage-voices .vx-credit dt {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.stage-voices .vx-credit dd {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+.stage-voices .vx-name {
+  font-weight: 600;
+  color: var(--fg);
+}
+.stage-voices .vx-co {
+  color: var(--fg-muted);
+}
+.stage-voices .vx-credits .rise.is-in .rise-w > span {
+  transition-delay: calc(0.18s + var(--i, 0) * 30ms);
+}
+
+/* ---------------- tracklist (back of the sleeve) ---------------- */
+
+.stage-voices .vx-list {
+  position: absolute;
+  right: var(--gutter);
+  top: var(--safe-top);
+  display: flex;
+  gap: 36px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.95;
+  visibility: hidden;
+  opacity: 0;
+}
+.stage-voices .vx-side-h {
+  margin: 0 0 4px;
+  color: var(--fg-faint);
+  letter-spacing: 0.16em;
+}
+.stage-voices .vx-list ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.stage-voices .vx-list li {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  color: var(--fg-faint);
+  transition: color 0.4s ease;
+  white-space: nowrap;
+}
+.stage-voices .vx-list li.is-done {
+  color: var(--fg-muted);
+}
+.stage-voices .vx-list li.is-on {
+  color: var(--fg);
+}
+.stage-voices .vx-li-n {
+  width: 18px;
+}
+.stage-voices .vx-list li::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+  opacity: 0;
+  transform: scale(0.2);
+  transition:
+    opacity 0.3s ease,
+    transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-voices .vx-list li.is-on::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------- playhead callout ---------------- */
+
+.stage-voices .vx-ph .callout-label {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--fg-muted);
+}
+.stage-voices .vx-ph .callout-dot {
+  /* the LED itself is drawn in WebGL so it blooms */
+  display: none;
+}
+.stage-voices .vx-ph .callout-svg path {
+  stroke-opacity: 0.4;
+}
+
+/* ---------------- portrait: plot on top, notes below ---------------- */
+
+@media (max-aspect-ratio: 9/10) {
+  .stage-voices .vx-col {
+    left: var(--gutter);
+    right: var(--gutter);
+    width: auto;
+    top: max(50vh, calc(var(--safe-top) + 250px));
+  }
+  .stage-voices .vx-card {
+    justify-content: flex-start;
+    gap: 14px;
+  }
+  .stage-voices .vx-head {
+    gap: 18px;
+  }
+  .stage-voices .vx-title {
+    font-size: clamp(2.9rem, 14vw, 5rem);
+  }
+  .stage-voices .vx-quote .hud-quote {
+    font-size: min(6vw, 3.25vh, 30px);
+    line-height: 1.13;
+  }
+  .stage-voices .vx-credit dd {
+    font-size: 14px;
+  }
+  .stage-voices .vx-list {
+    display: none;
+  }
+}

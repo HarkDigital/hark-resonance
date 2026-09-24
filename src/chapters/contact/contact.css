@@ -1,0 +1,513 @@
+/* ---------------- Say hello (contact) ---------------- */
+
+/* invisible probe that reports the safe area to the camera fit */
+.stage-contact .ct-probe {
+  position: absolute;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  left: var(--gutter);
+  right: var(--gutter);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage-contact .ct-wrap {
+  position: absolute;
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  left: var(--gutter);
+  right: var(--gutter);
+  pointer-events: none;
+}
+
+.stage-contact .ct-col {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 56px;
+  width: min(620px, 44vw);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.stage-contact .ct-eyebrow {
+  margin: 0 0 clamp(16px, 2.6vh, 26px);
+}
+/* the eyebrow's LED lights with its words */
+.stage-contact .ct-eyebrow::before {
+  opacity: 0;
+  transform: scale(0.3);
+  transition:
+    opacity 0.3s ease,
+    transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-eyebrow.is-in::before {
+  opacity: 1;
+  transform: none;
+}
+
+.stage-contact .ct-title {
+  font-size: clamp(3.4rem, 8.8vw, 9.4rem);
+  line-height: 0.86;
+  letter-spacing: -0.05em;
+  margin: 0 0 clamp(18px, 3.2vh, 30px);
+  white-space: nowrap;
+}
+.stage-contact .ct-title em {
+  letter-spacing: -0.025em;
+}
+
+.stage-contact .ct-body {
+  max-width: 38ch;
+  margin: 0 0 clamp(22px, 3.6vh, 34px);
+}
+.stage-contact .ct-body .rise-w > span {
+  transition-delay: calc(var(--i, 0) * 9ms + 60ms);
+}
+
+/* block fade for the buttons + link row (settles in ~0.6s, like rise) */
+.stage-contact .ct-fade {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+  visibility: hidden;
+  transition:
+    opacity 0.45s ease,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0.45s;
+}
+.stage-contact .ct-fade.is-in {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity 0.5s ease 0.12s,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s,
+    visibility 0s linear 0s;
+}
+
+.stage-contact .ct-cta {
+  /* the primary CTA always wins hit-testing over anything nearby */
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.stage-contact .ct-mail {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  padding: 16px 24px;
+  gap: 12px;
+}
+.stage-contact .ct-mail-arrow {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-mail:hover .ct-mail-arrow,
+.stage-contact .ct-mail:focus-visible .ct-mail-arrow {
+  transform: translateX(4px);
+}
+
+.stage-contact .ct-copy {
+  padding: 16px 20px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  background: rgba(247, 245, 240, 0.55);
+}
+.stage-contact .ct-copy-lbl {
+  display: grid;
+}
+.stage-contact .ct-copy-idle,
+.stage-contact .ct-copy-done {
+  grid-area: 1 / 1;
+  text-align: center;
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-copy-done {
+  opacity: 0;
+  transform: translateY(6px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.stage-contact .ct-copy-done::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+}
+.stage-contact .ct-copy.is-copied {
+  border-color: var(--ink);
+}
+.stage-contact .ct-copy.is-copied .ct-copy-idle {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.stage-contact .ct-copy.is-copied .ct-copy-done {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- sign-off: "End of side B" ---- */
+.stage-contact .ct-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: clamp(26px, 5.4vh, 54px) 0 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.stage-contact .ct-rec {
+  display: block;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  opacity: 0;
+  transform: scale(0.7) rotate(-40deg);
+  transition:
+    opacity 0.4s ease,
+    transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-end.is-in .ct-rec {
+  opacity: 1;
+  transform: none;
+}
+.stage-contact .ct-rec svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.stage-contact .ct-end.is-in .ct-rec svg {
+  /* 33⅓ rpm, locked in the run-out groove */
+  animation: ct-spin 1.8s linear infinite;
+}
+.stage-contact .rec-disc {
+  fill: var(--ink);
+}
+.stage-contact .rec-groove {
+  fill: none;
+  stroke: rgba(238, 235, 228, 0.16);
+  stroke-width: 0.6;
+}
+.stage-contact .rec-label {
+  fill: var(--paper-3);
+}
+.stage-contact .rec-sheen {
+  fill: none;
+  stroke: rgba(238, 235, 228, 0.55);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.stage-contact .rec-led {
+  fill: var(--signal);
+}
+@keyframes ct-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.stage-contact .ct-end-txt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.stage-contact .ct-end-sub {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--fg-muted);
+}
+.stage-contact .ct-end-sub .rise-w > span {
+  transition-delay: calc(var(--i, 0) * 40ms + 180ms);
+}
+
+/* ---- bottom row: links + footer ---- */
+.stage-contact .ct-bottom {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px 32px;
+  pointer-events: none;
+}
+.stage-contact .ct-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.stage-contact .ct-link {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+}
+.stage-contact .ct-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 1px;
+  background: var(--fg);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-link:hover::after,
+.stage-contact .ct-link:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.stage-contact .ct-ext,
+.stage-contact .ct-top-arrow {
+  color: var(--fg-faint);
+  letter-spacing: 0;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-link:hover .ct-ext {
+  transform: translate(2px, -2px);
+}
+.stage-contact .ct-link:hover .ct-top-arrow {
+  transform: translateY(-2px);
+}
+.stage-contact .ct-sep {
+  color: var(--fg-faint);
+}
+/* at the very end, "Back to top" gets the lit LED */
+.stage-contact .ct-top-led {
+  display: block;
+  width: 0;
+  height: 6px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+  opacity: 0;
+  transition:
+    opacity 0.4s ease,
+    width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-contact .ct-top.is-end .ct-top-led {
+  width: 6px;
+  margin-left: 2px;
+  opacity: 1;
+}
+.stage-contact .ct-foot {
+  margin: 0;
+  padding-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---- magnet callout ---- */
+.stage-contact .ct-callout .callout-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stage-contact .ct-callout.is-left .callout-label {
+  align-items: flex-end;
+  text-align: right;
+}
+.stage-contact .ct-co-k {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--fg-muted);
+}
+.stage-contact .ct-co-v {
+  font-size: 11px;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* narrower desktops: the footer breaks onto two lines so the links keep one */
+@media (max-width: 1240px) {
+  .stage-contact .ct-foot-name,
+  .stage-contact .ct-foot-loc {
+    display: block;
+  }
+  .stage-contact .ct-foot-sep {
+    display: none;
+  }
+  .stage-contact .ct-foot {
+    line-height: 1.7;
+  }
+}
+
+/* ---------------- phones / portrait: dish above, copy below ---------------- */
+@media (max-width: 767px), (max-aspect-ratio: 9/10) {
+  .stage-contact .ct-wrap {
+    top: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage-contact .ct-col {
+    position: static;
+    width: auto;
+    display: block;
+  }
+  .stage-contact .ct-eyebrow {
+    margin-bottom: 12px;
+  }
+  .stage-contact .ct-title {
+    font-size: clamp(3rem, 14.5vw, 5.6rem);
+    line-height: 0.9;
+    margin-bottom: 14px;
+  }
+  .stage-contact .ct-body {
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 44ch;
+    margin-bottom: 18px;
+  }
+  .stage-contact .ct-cta {
+    gap: 8px;
+  }
+  .stage-contact .ct-mail {
+    font-size: 12.5px;
+    padding: 14px 20px;
+  }
+  .stage-contact .ct-copy {
+    padding: 14px 16px;
+    font-size: 10.5px;
+  }
+  /* sign-off floats between the dish and the copy */
+  .stage-contact .ct-end {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 12px);
+    justify-content: center;
+    margin: 0;
+  }
+  .stage-contact .ct-end-sub {
+    font-size: 17px;
+  }
+  .stage-contact .ct-rec {
+    width: 22px;
+    height: 22px;
+  }
+  .stage-contact .ct-bottom {
+    position: static;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-top: 18px;
+  }
+  /* two tidy columns instead of a wrapped row with orphaned separators */
+  .stage-contact .ct-links {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: start;
+    font-size: 10px;
+    gap: 0 26px;
+    letter-spacing: 0.12em;
+  }
+  .stage-contact .ct-sep {
+    display: none;
+  }
+  .stage-contact .ct-foot-name,
+  .stage-contact .ct-foot-loc {
+    display: inline;
+  }
+  .stage-contact .ct-foot-sep {
+    display: inline;
+  }
+  .stage-contact .ct-callout .callout-label {
+    padding: 5px 8px 4px;
+  }
+  .stage-contact .ct-co-k {
+    font-size: 9.5px;
+    color: var(--fg);
+  }
+  .stage-contact .ct-link {
+    padding: 7px 0;
+  }
+  .stage-contact .ct-foot {
+    text-align: left;
+    white-space: normal;
+    font-size: 9.5px;
+    line-height: 1.6;
+    padding-bottom: 0;
+  }
+}
+
+/* short phones (iPhone SE class): tighter copy so the dish keeps its room */
+@media (max-width: 767px) and (max-height: 740px) {
+  .stage-contact .ct-title {
+    font-size: min(12.5vw, 50px);
+    margin-bottom: 10px;
+  }
+  .stage-contact .ct-body {
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 14px;
+  }
+  .stage-contact .ct-bottom {
+    margin-top: 10px;
+  }
+  .stage-contact .ct-mail,
+  .stage-contact .ct-copy {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+
+/* magnet callout: a small specimen tag so it reads over the black fluid */
+.stage-contact .ct-callout .callout-label {
+  padding: 6px 9px 5px;
+  background: rgba(247, 245, 240, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 8px 22px rgba(14, 14, 15, 0.08);
+}
+
+/* entering the chapter: apply HUD states without transitions for a frame */
+.stage-contact.ct-snap *,
+.stage-contact.ct-snap *::before,
+.stage-contact.ct-snap *::after {
+  transition: none !important;
+}

@@ -1,0 +1,261 @@
+/* The Desk — process chapter HUD. Every selector scoped under .stage-process. */
+
+.stage-process .pr {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- paper falloff behind the copy column: the key light drops off into the cyc */
+.stage-process .pr-scrim {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background:
+    linear-gradient(90deg, rgba(238, 235, 228, 0.94) 0%, rgba(238, 235, 228, 0.86) 24%, rgba(238, 235, 228, 0.5) 36%, rgba(238, 235, 228, 0) 50%);
+  will-change: opacity;
+}
+
+/* ---- headline */
+.stage-process .pr-head {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: min(44vw, 560px);
+}
+.stage-process .pr-eyebrow {
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  transition:
+    opacity 0.5s ease,
+    transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-process .pr-eyebrow.is-in {
+  opacity: 1;
+  transform: none;
+}
+.stage-process .pr-title {
+  font-size: clamp(2.3rem, 5vw, 4.8rem);
+}
+
+/* ---- the process as a channel list */
+.stage-process .pr-list {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  width: min(30vw, 400px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid transparent;
+  transition: border-color 0.5s ease;
+}
+.stage-process .pr-list.is-in {
+  border-top-color: var(--line);
+}
+.stage-process .pr-row {
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.5s ease;
+}
+.stage-process .pr-list.is-in .pr-row {
+  border-bottom-color: var(--line);
+}
+.stage-process .pr-row-line {
+  display: grid;
+  grid-template-columns: 8px 28px 1fr auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 11px 0 10px;
+}
+.stage-process .pr-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  opacity: 0;
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    opacity 0.4s ease;
+}
+.stage-process .pr-list.is-in .pr-led {
+  opacity: 0.45;
+}
+.stage-process .pr-list.is-in .pr-row.is-live .pr-led {
+  opacity: 1;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+}
+.stage-process .pr-num,
+.stage-process .pr-db {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  opacity: 0;
+  transition:
+    opacity 0.4s ease,
+    color 0.3s ease;
+}
+.stage-process .pr-db {
+  min-width: 5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.stage-process .pr-db::after {
+  content: ' dB';
+  opacity: 0.7;
+}
+.stage-process .pr-list.is-in .pr-num,
+.stage-process .pr-list.is-in .pr-db {
+  opacity: 1;
+}
+.stage-process .pr-row-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: clamp(1.25rem, 1.9vw, 1.75rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--fg-faint);
+  transition: color 0.35s ease;
+}
+.stage-process .pr-row.is-active .pr-row-title,
+.stage-process .pr-row.is-active .pr-num,
+.stage-process .pr-row.is-active .pr-db {
+  color: var(--fg);
+}
+/* the active row opens (grid-rows trick: no height measuring) */
+.stage-process .pr-row-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-process .pr-row.is-active .pr-row-body {
+  grid-template-rows: 1fr;
+}
+.stage-process .pr-row-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.stage-process .pr-body {
+  padding: 0 0 16px 48px;
+  max-width: 36ch;
+  color: var(--fg-muted);
+}
+
+/* ---- stats row (desktop: JS lines it up under the bridge readouts) */
+.stage-process .pr-stats {
+  position: absolute;
+  left: var(--gutter);
+  right: auto;
+  bottom: var(--safe-bottom);
+  width: calc(100% - var(--gutter) * 2);
+}
+.stage-process .pr-stats-eyebrow {
+  margin-bottom: 16px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.stage-process .pr-stats-eyebrow.is-in {
+  opacity: 1;
+}
+.stage-process .pr-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: clamp(20px, 3vw, 48px);
+}
+.stage-process .pr-stat {
+  border-top: 1px solid transparent;
+  padding-top: 14px;
+  transition: border-color 0.5s ease;
+}
+.stage-process .pr-stats.is-in .pr-stat {
+  border-top-color: var(--line-strong);
+}
+.stage-process .pr-stat-v {
+  margin: 0 0 8px;
+  font-family: var(--font-sans);
+  font-weight: 650;
+  font-size: clamp(1.9rem, 3.3vw, 3.2rem);
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  color: var(--fg);
+}
+.stage-process .pr-stat-l {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 1vw, 15px);
+  line-height: 1.45;
+  color: var(--fg-muted);
+  max-width: 30ch;
+}
+
+/* ---- phones / portrait: title on top, list and stats stacked at the bottom */
+@media (max-aspect-ratio: 4/5) {
+  /* solid paper behind the headline and the list, fading into the desk between them */
+  .stage-process .pr-scrim {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(238, 235, 228, 0.95) 0,
+        rgba(238, 235, 228, 0.9) calc(var(--pr-head-b, 22%) + 4px),
+        rgba(238, 235, 228, 0) calc(var(--pr-head-b, 22%) + 70px)
+      ),
+      linear-gradient(
+        0deg,
+        rgba(238, 235, 228, 0.96) 0,
+        rgba(238, 235, 228, 0.9) calc(var(--pr-list-b, 40%) + 6px),
+        rgba(238, 235, 228, 0) calc(var(--pr-list-b, 40%) + 80px)
+      );
+  }
+  .stage-process .pr-head {
+    gap: 12px;
+    max-width: none;
+    right: var(--gutter);
+  }
+  .stage-process .pr-title {
+    font-size: clamp(2rem, 9vw, 3rem);
+  }
+  .stage-process .pr-list {
+    right: var(--gutter);
+    width: auto;
+  }
+  .stage-process .pr-row-line {
+    padding: 8px 0 7px;
+    column-gap: 10px;
+    grid-template-columns: 7px 24px 1fr auto;
+  }
+  .stage-process .pr-row-title {
+    font-size: 1.15rem;
+  }
+  .stage-process .pr-body {
+    padding: 0 0 12px 41px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .stage-process .pr-stats {
+    left: var(--gutter);
+    right: var(--gutter);
+    width: auto;
+  }
+  .stage-process .pr-stats-grid {
+    grid-template-columns: 1fr;
+    row-gap: 12px;
+  }
+  .stage-process .pr-stat {
+    display: grid;
+    grid-template-columns: 6.2em 1fr;
+    column-gap: 14px;
+    align-items: baseline;
+    padding-top: 10px;
+  }
+  .stage-process .pr-stat-v {
+    font-size: 1.6rem;
+    margin: 0;
+  }
+  .stage-process .pr-stat-l {
+    font-size: 13px;
+  }
+}

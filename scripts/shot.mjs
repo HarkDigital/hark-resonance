@@ -90,7 +90,7 @@ try {
       if (at === id) break
       console.log(`[shot] expected ${id}, found ${at} — retrying`)
     }
-    const file = path.join(out, `${tag}${id}-${local.toFixed(2)}.png`)
+    const file = path.join(out, `${tag}${id}-${local.toFixed(local * 100 === Math.round(local * 100) ? 2 : 3)}.png`)
     await page.screenshot({ path: file })
     console.log(`saved ${file}`)
   }

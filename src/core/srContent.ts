@@ -61,7 +61,7 @@ const COPY: Record<string, () => string> = {
     <h2>How we work</h2>
     <p>We listen first. Then we build.</p>
     <ol>${PROCESS.map(p => `<li><h3>${esc(p.title)}</h3><p>${esc(p.text)}</p></li>`).join('')}</ol>
-    <ul>${STATS.slice(0, 3).map(s => `<li>${esc(s.value)}: ${esc(s.label)}</li>`).join('')}</ul>`,
+    <ul>${[STATS[0], STATS[2], STATS[1]].map(s => `<li>${esc(s.value)}: ${esc(s.label)}</li>`).join('')}</ul>`,
 
   contact: () => `
     <h2>${esc(CONTACT.title)}</h2>

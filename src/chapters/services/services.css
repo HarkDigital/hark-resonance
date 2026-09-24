@@ -1,0 +1,395 @@
+/* Cymatics — the Chladni plate chapter. Every selector is scoped to .stage-services. */
+
+.stage-services {
+  --svc-col: min(430px, 34vw);
+}
+
+/* ---------------- intro ---------------- */
+.stage-services .svc-intro {
+  position: absolute;
+  left: var(--gutter);
+  bottom: calc(var(--safe-bottom) + 8px);
+  max-width: min(64vw, 980px);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.stage-services .svc-intro-eyebrow {
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  transition:
+    opacity 0.45s ease,
+    transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-services .svc-intro.is-on .svc-intro-eyebrow {
+  opacity: 1;
+  transform: none;
+}
+.stage-services .svc-intro-title {
+  font-size: clamp(3rem, 7.4vw, 8rem);
+}
+
+/* ---------------- service panel ---------------- */
+.stage-services .svc-panel {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: var(--svc-col);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.35s ease,
+    visibility 0s linear 0.35s;
+}
+.stage-services .svc-panel.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.45s ease,
+    visibility 0s;
+}
+.stage-services .svc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.stage-services .svc-head::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+}
+.stage-services .svc-no {
+  color: var(--fg);
+}
+.stage-services .svc-of {
+  color: var(--fg-faint);
+}
+.stage-services .svc-head-hz {
+  display: none;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* all eleven share one grid cell, so the column never jumps */
+.stage-services .svc-stack {
+  display: grid;
+}
+.stage-services .svc-item {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  visibility: hidden;
+  transition: visibility 0s linear 0.4s;
+}
+.stage-services .svc-item.is-on {
+  visibility: visible;
+  transition: visibility 0s;
+}
+.stage-services .svc-title {
+  font-size: clamp(2rem, 3.35vw, 3.5rem);
+  line-height: 0.98;
+}
+.stage-services .svc-blurb,
+.stage-services .svc-tags {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition:
+    opacity 0.25s ease,
+    transform 0.3s ease;
+}
+.stage-services .svc-item.is-on .svc-blurb,
+.stage-services .svc-item.is-on .svc-tags {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.55s ease 0.18s,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.18s;
+}
+.stage-services .svc-item.is-on .svc-tags {
+  transition-delay: 0.28s;
+}
+.stage-services .svc-blurb {
+  max-width: 38ch;
+}
+
+/* 01–11: a step-sequencer strip; the lit key carries the LED */
+.stage-services .svc-keys {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 4px;
+  max-width: 400px;
+}
+.stage-services .svc-key {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  padding: 9px 0 4px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--fg-faint);
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+.stage-services .svc-key::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+  opacity: 0;
+  transform: scaleX(0.3);
+  transform-origin: left;
+  transition:
+    opacity 0.3s ease,
+    transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.stage-services .svc-key:hover {
+  color: var(--fg);
+}
+.stage-services .svc-key.is-on {
+  color: var(--fg);
+}
+.stage-services .svc-key.is-on::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------- frequency readout ---------------- */
+.stage-services .svc-readout {
+  position: absolute;
+  right: var(--gutter);
+  top: var(--safe-top);
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  opacity: 0;
+  transform: translate3d(0, -6px, 0);
+  transition:
+    opacity 0.4s ease,
+    transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stage-services .svc-readout.is-on {
+  opacity: 1;
+  transform: none;
+}
+.stage-services .svc-hz {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-sans);
+  color: var(--fg);
+}
+.stage-services .svc-hz-num {
+  font-size: clamp(2.6rem, 3.9vw, 3.9rem);
+  font-weight: 300;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+.stage-services .svc-hz-unit {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(1.3rem, 1.8vw, 1.8rem);
+  color: var(--fg-muted);
+}
+.stage-services .svc-scale {
+  position: relative;
+  height: 16px;
+  margin-top: 6px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.stage-services .svc-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 6px;
+  background: var(--fg-faint);
+}
+.stage-services .svc-tick--logo {
+  height: 9px;
+  background: var(--fg);
+}
+.stage-services .svc-runner {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  transition: transform 0.12s linear;
+}
+.stage-services .svc-needle {
+  position: absolute;
+  left: -1px;
+  bottom: -4px;
+  width: 2px;
+  height: 20px;
+  border-radius: 1px;
+  background: var(--signal);
+  box-shadow: 0 0 calc(4px + 10px * var(--drive, 0)) rgba(0, 255, 133, calc(0.35 + 0.5 * var(--drive, 0)));
+}
+.stage-services .svc-scale-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.5px;
+  color: var(--fg-faint);
+}
+.stage-services .svc-mode {
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+/* ---------------- finale: sits in the copy column ---------------- */
+.stage-services .svc-finale {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  bottom: var(--safe-bottom);
+  width: var(--svc-col);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: none;
+}
+.stage-services .svc-finale .hud-eyebrow {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.stage-services .svc-finale.is-on .hud-eyebrow {
+  opacity: 1;
+}
+.stage-services .svc-finale-title {
+  font-size: clamp(2.4rem, 4.2vw, 4.4rem);
+}
+
+/* ---------------- tablet / narrow landscape ---------------- */
+@media (max-width: 1100px) and (min-width: 768px) {
+  .stage-services {
+    --svc-col: min(380px, 40vw);
+  }
+  .stage-services .svc-readout {
+    width: 190px;
+  }
+}
+
+/* ---------------- phones: plate on top, HUD as a bottom sheet ---------------- */
+@media (max-width: 767px), (max-aspect-ratio: 4/5) {
+  .stage-services .svc-intro {
+    right: var(--gutter);
+    max-width: none;
+    gap: 14px;
+  }
+  .stage-services .svc-intro-title {
+    font-size: clamp(2.6rem, 12.5vw, 4.4rem);
+  }
+  .stage-services .svc-panel {
+    top: auto;
+    right: var(--gutter);
+    width: auto;
+    bottom: calc(var(--safe-bottom) - 8px);
+    justify-content: flex-end;
+    gap: 14px;
+    padding: 16px 16px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  }
+  .stage-services .svc-head-hz {
+    display: inline;
+  }
+  .stage-services .svc-item {
+    gap: 10px;
+  }
+  .stage-services .svc-title {
+    font-size: clamp(1.55rem, 7.4vw, 2.2rem);
+  }
+  .stage-services .svc-blurb {
+    font-size: 13.5px;
+    line-height: 1.45;
+    max-width: none;
+  }
+  .stage-services .svc-tags {
+    gap: 4px;
+  }
+  .stage-services .svc-tags .hud-tag {
+    font-size: 9.5px;
+    padding: 4px 8px;
+  }
+  .stage-services .svc-keys {
+    max-width: none;
+  }
+  .stage-services .svc-key {
+    padding: 7px 0 0;
+    font-size: 9.5px;
+  }
+  .stage-services .svc-readout {
+    display: none;
+  }
+  .stage-services .svc-finale {
+    top: auto;
+    right: var(--gutter);
+    width: auto;
+    bottom: calc(var(--safe-bottom) + 4px);
+  }
+  .stage-services .svc-finale-title {
+    font-size: clamp(2rem, 9vw, 3rem);
+  }
+}
+
+/* short phones: drop the blurb to one clamp so the plate keeps its half */
+@media (max-width: 767px) and (max-height: 700px) {
+  .stage-services .svc-blurb {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* phones in landscape / very short windows: keep the essentials only */
+@media (max-height: 520px) and (min-width: 768px) {
+  .stage-services .svc-intro-title {
+    font-size: clamp(2.2rem, 6vw, 3.4rem);
+  }
+  .stage-services .svc-panel {
+    gap: 12px;
+  }
+  .stage-services .svc-title {
+    font-size: clamp(1.4rem, 3vw, 2rem);
+  }
+  .stage-services .svc-blurb {
+    display: none;
+  }
+  .stage-services .svc-readout {
+    display: none;
+  }
+  .stage-services .svc-finale-title {
+    font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  }
+}

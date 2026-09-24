@@ -1,0 +1,366 @@
+/* WORK — The Crate. Every selector scoped under .stage-work. */
+
+.stage-work {
+  --wk-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ---- head: eyebrow + a sequencer-style meter of the crate ---- */
+.stage-work .wk-head {
+  position: absolute;
+  left: var(--gutter);
+  top: var(--safe-top);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  opacity: 0;
+  transform: translate3d(0, -6px, 0);
+  transition:
+    opacity 0.5s ease,
+    transform 0.7s var(--wk-ease);
+}
+.stage-work .wk-head.is-in {
+  opacity: 1;
+  transform: none;
+}
+.stage-work .wk-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 14px;
+}
+.stage-work .wk-meter i {
+  display: block;
+  width: 3px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--line-strong);
+  transition:
+    background 0.35s ease,
+    box-shadow 0.35s ease,
+    height 0.35s var(--wk-ease);
+}
+.stage-work .wk-meter i.is-feat {
+  height: 14px;
+}
+.stage-work .wk-meter i.is-done {
+  background: var(--fg);
+  opacity: 0.55;
+}
+.stage-work .wk-meter i.is-on {
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+  opacity: 1;
+}
+.stage-work .wk-count {
+  font-variant-numeric: tabular-nums;
+  min-width: 12ch;
+}
+
+/* ---- intro ---- */
+.stage-work .wk-intro {
+  position: absolute;
+  left: var(--gutter);
+  top: calc(var(--safe-top) + 44px);
+  width: min(46vw, 660px);
+}
+.stage-work .wk-intro .hud-title {
+  font-size: clamp(3.2rem, 7.4vw, 8rem);
+}
+.stage-work .wk-intro-note {
+  margin: 22px 0 0;
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition:
+    opacity 0.4s ease,
+    transform 0.6s var(--wk-ease);
+}
+.stage-work .wk-intro.is-in .wk-intro-note {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.25s;
+}
+
+/* ---- shared fade-in for the non-headline bits ---- */
+.stage-work .wk-fade {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+  transition:
+    opacity 0.26s ease,
+    transform 0.4s var(--wk-ease);
+}
+.stage-work .is-in .wk-fade {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.5s ease calc(0.12s + var(--d, 0) * 0.06s),
+    transform 0.75s var(--wk-ease) calc(0.12s + var(--d, 0) * 0.06s);
+}
+
+/* ---- project cards ---- */
+.stage-work .wk-card {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  width: min(420px, 34vw);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  visibility: hidden;
+  transition: visibility 0s linear 0.45s;
+}
+.stage-work .wk-card.is-in {
+  visibility: visible;
+  transition: visibility 0s;
+}
+.stage-work .wk-cat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.stage-work .wk-num {
+  color: var(--fg);
+}
+.stage-work .wk-num span {
+  color: var(--fg-faint);
+}
+.stage-work .wk-name {
+  margin-top: 6px;
+  font-size: clamp(2.1rem, 3.9vw, 3.9rem);
+}
+.stage-work .wk-ind {
+  margin: -2px 0 0;
+}
+.stage-work .wk-blurb {
+  max-width: 36ch;
+}
+.stage-work .wk-visit {
+  margin-top: 6px;
+}
+
+/* ---- the nine ---- */
+.stage-work .wk-more {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--safe-bottom);
+  width: min(560px, 44vw);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  visibility: hidden;
+  transition: visibility 0s linear 0.45s;
+}
+.stage-work .wk-more.is-in {
+  visibility: visible;
+  transition: visibility 0s;
+}
+.stage-work .wk-more-eb {
+  margin: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  width: 100%;
+}
+.stage-work .wk-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(5, auto);
+  grid-auto-flow: column;
+  column-gap: 28px;
+  row-gap: 2px;
+}
+.stage-work .wk-list a {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: var(--fg);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.25s ease;
+}
+.stage-work .wk-list a:hover,
+.stage-work .wk-list a:focus-visible {
+  border-bottom-color: var(--line-strong);
+}
+.stage-work .wk-li-n {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  width: 2.4ch;
+}
+/* LED next to the name whose sleeve is going over */
+.stage-work .wk-li-n::before {
+  content: '';
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: var(--signal-glow);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s var(--wk-ease);
+}
+.stage-work .wk-list li.is-hot .wk-li-n::before {
+  opacity: 1;
+  transform: none;
+}
+.stage-work .wk-list li.is-hot .wk-li-n {
+  color: var(--fg);
+}
+/* the riffle walks the list: names still in the crate sit back a step */
+.stage-work .wk-list .wk-li-name {
+  transition: color 0.35s ease;
+}
+.stage-work .wk-more.is-riffling .wk-list li:not(.is-hot):not(.is-done) .wk-li-name {
+  color: var(--fg-muted);
+}
+.stage-work .wk-li-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.stage-work .wk-li-name {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+.stage-work .wk-li-ind {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-work .wk-hello {
+  margin-top: 6px;
+}
+
+.stage-work .wk-callout .callout-label {
+  font-size: 10.5px;
+}
+
+/* ---- compact (phones, portrait tablets): cards become a bottom sheet ---- */
+.stage-work.is-compact .wk-head {
+  gap: 12px;
+}
+.stage-work.is-compact .wk-meter {
+  gap: 2px;
+}
+.stage-work.is-compact .wk-meter i {
+  width: 2px;
+}
+.stage-work.is-compact .wk-count {
+  display: none;
+}
+.stage-work.is-compact .wk-intro {
+  width: auto;
+  right: var(--gutter);
+  top: calc(var(--safe-top) + 34px);
+}
+.stage-work.is-compact .wk-intro .hud-title {
+  font-size: clamp(2.9rem, 14.5vw, 5rem);
+}
+.stage-work.is-compact .wk-card,
+.stage-work.is-compact .wk-more {
+  right: var(--gutter);
+  width: auto;
+  padding: 16px 18px 18px;
+  gap: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  opacity: 0;
+  transform: translate3d(0, 14px, 0);
+  transition:
+    visibility 0s linear 0.45s,
+    opacity 0.3s ease,
+    transform 0.45s var(--wk-ease);
+}
+.stage-work.is-compact .wk-card.is-in,
+.stage-work.is-compact .wk-more.is-in {
+  opacity: 1;
+  transform: none;
+  transition:
+    visibility 0s,
+    opacity 0.4s ease,
+    transform 0.6s var(--wk-ease);
+}
+.stage-work.is-compact .wk-cat {
+  padding-bottom: 9px;
+}
+.stage-work.is-compact .wk-name {
+  font-size: clamp(1.65rem, 7.4vw, 2.3rem);
+  margin-top: 2px;
+}
+.stage-work.is-compact .wk-blurb {
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: none;
+}
+.stage-work.is-compact .wk-visit {
+  margin-top: 2px;
+  padding: 11px 18px;
+}
+.stage-work.is-compact .wk-more .hud-h2 {
+  font-size: clamp(1.65rem, 7.4vw, 2.3rem);
+}
+.stage-work.is-compact .wk-list {
+  column-gap: 14px;
+  margin: 0;
+}
+.stage-work.is-compact .wk-list a {
+  padding: 3px 0;
+  gap: 8px;
+}
+.stage-work.is-compact .wk-li-name {
+  font-size: 13px;
+}
+.stage-work.is-compact .wk-li-ind {
+  display: none;
+}
+.stage-work.is-compact .wk-li-n::before {
+  left: -9px;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+}
+.stage-work.is-compact .wk-hello {
+  padding: 11px 18px;
+}
+@media (max-height: 700px) {
+  .stage-work.is-compact .wk-blurb {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .stage-work.is-compact .wk-tags {
+    display: none;
+  }
+}
