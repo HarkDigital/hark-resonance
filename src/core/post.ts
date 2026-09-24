@@ -29,6 +29,8 @@ const FinalShader = {
     /** 0..1 fades the whole frame to paper (reduced-motion cuts) */
     uFade: { value: 0 },
     uPaper: { value: new THREE.Color('#eeebe4') },
+    /** reduced-motion dip colour (paper in light rooms, graphite in dark ones) */
+    uFadeColor: { value: new THREE.Color('#eeebe4') },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -38,7 +40,7 @@ const FinalShader = {
     uniform sampler2D tDiffuse;
     uniform float uTime, uTransition, uGlitch, uAberration, uGrain, uVignette, uFlash, uFade;
     uniform vec2 uResolution;
-    uniform vec3 uPaper;
+    uniform vec3 uPaper, uFadeColor;
     varying vec2 vUv;
 
     float hash(vec2 p) {
@@ -65,7 +67,8 @@ const FinalShader = {
       float r = length(c);
       vec2 dir = c / max(r, 1e-4);
       float front = t * 1.25;
-      float ring = exp(-pow((r - front) * 7.0, 2.0));
+      float q = (r - front) * 7.0;
+      float ring = exp(-q * q);
       float wave = sin(r * 48.0 - uTime * 14.0) * smoothstep(front + 0.2, front - 0.3, r);
       vec2 disp = dir * (ring * 0.05 + wave * 0.006) * t;
       uv -= disp / vec2(aspect, 1.0);
@@ -88,7 +91,7 @@ const FinalShader = {
       float n = hash(vUv * uResolution + fract(uTime * 7.13) * 91.0) - 0.5;
       col += n * uGrain * (0.4 + 0.6 * (1.0 - abs(lum - 0.5) * 2.0));
 
-      col = mix(col, uPaper, clamp(uFade, 0.0, 1.0));
+      col = mix(col, uFadeColor, clamp(uFade, 0.0, 1.0));
       gl_FragColor = vec4(col, 1.0);
     }
   `,
@@ -177,6 +180,13 @@ export class Post {
     this.composer.addPass(new OutputPass())
     this.final = new ShaderPass(FinalShader)
     this.composer.addPass(this.final)
+  }
+
+  private fadeLight = new THREE.Color('#eeebe4')
+  private fadeDark = new THREE.Color('#111113')
+  /** tone 0 = paper .. 1 = graphite */
+  setFadeTone(tone: number) {
+    ;(this.final.uniforms.uFadeColor.value as THREE.Color).copy(this.fadeLight).lerp(this.fadeDark, Math.min(1, Math.max(0, tone)))
   }
 
   resetParams() {

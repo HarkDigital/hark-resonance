@@ -121,6 +121,11 @@ a {
 #track:focus {
   outline: none;
 }
+/* lift the copy layer above stages + chrome while it holds keyboard focus,
+   so the focus pill is never painted underneath (it never takes pointer events) */
+#track:focus-within {
+  z-index: 30;
+}
 .chapter {
   position: relative;
   width: 100%;
@@ -364,8 +369,8 @@ a {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
-  backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
 }
 
 .hud-rule {
@@ -536,5 +541,49 @@ a {
 }
 .rise:not(.is-in) .rise-w > span {
   transition-duration: 0.35s, 0.25s;
+  transition-delay: 0s;
+}
+
+/* the chapter heading that receives focus after an in-page jump: a quiet "now playing" pill */
+.sr-copy :is(h1, h2):focus {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 8px);
+  transform: translateX(-50%);
+  z-index: 40;
+  margin: 0;
+  white-space: nowrap;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper-2);
+  padding: 12px 20px;
+  border-radius: 999px;
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.sr-copy [data-copy-status]:not(:empty) {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 64px);
+  transform: translateX(-50%);
+  z-index: 40;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--signal);
+  padding: 10px 16px;
+  border-radius: 999px;
+}
+
+/* Windows contrast themes: fully hide words that haven't risen (they'd paint as solid blocks) */
+.rise .rise-w {
+  visibility: hidden;
+  transition: visibility 0s linear 0.35s;
+}
+.rise.is-in .rise-w {
+  visibility: visible;
   transition-delay: 0s;
 }

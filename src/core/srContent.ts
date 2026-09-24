@@ -16,8 +16,11 @@ const esc = (s: string) =>
 
 const isPreview = (url: string) => /harktest\.com/.test(url)
 
-const ext = (href: string, label: string) =>
-  `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}<span class="sr-note"> (opens in a new tab)</span></a>`
+const ext = (href: string, label: string, anchor?: number) =>
+  `<a href="${esc(href)}" target="_blank" rel="noopener"${anchor != null ? ` data-anchor="${anchor}"` : ''}>${esc(label)}<span class="sr-note"> (opens in a new tab)</span></a>`
+
+/** An in-page stop that moves the story to item i of a chapter (see Chapter.anchors). */
+const stop = (id: string, i: number, label: string) => `<a href="#${id}" data-anchor="${i}">${esc(label)}</a>`
 
 const COPY: Record<string, () => string> = {
   hero: () => `
@@ -30,10 +33,11 @@ const COPY: Record<string, () => string> = {
     <h2>${esc(SECTIONS.work.title)}</h2>
     <p>${esc(SECTIONS.work.eyebrow)} — ${WORK.length} sites.</p>
     <ul>${WORK.map(
-      w =>
+      (w, i) =>
         `<li><h3>${esc(w.name)}</h3><p>${esc(w.industry)}. ${esc(w.blurb)}</p><p>${ext(
           w.url,
           isPreview(w.url) ? `Preview ${w.name} (pre-launch build)` : `Visit ${w.name}`,
+          i,
         )}</p></li>`,
     ).join('')}</ul>`,
 
@@ -41,7 +45,7 @@ const COPY: Record<string, () => string> = {
     <h2>${esc(SECTIONS.services.title)}</h2>
     <p>${esc(SECTIONS.services.eyebrow)}.</p>
     <ol>${SERVICES.map(
-      s => `<li><h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><p>${s.tags.map(esc).join(' · ')}</p></li>`,
+      (s, i) => `<li><h3>${stop('services', i, s.title)}</h3><p>${esc(s.blurb)}</p><p>${s.tags.map(esc).join(' · ')}</p></li>`,
     ).join('')}</ol>`,
 
   shield: () => `
@@ -54,13 +58,14 @@ const COPY: Record<string, () => string> = {
     <h2>${esc(SECTIONS.voices.title)}</h2>
     <p>${esc(SECTIONS.voices.eyebrow)}.</p>
     ${TESTIMONIALS.map(
-      t => `<figure><blockquote><p>${esc(t.quote)}</p></blockquote><figcaption>${esc(t.name)}, ${esc(t.company)}</figcaption></figure>`,
+      (t, i) =>
+        `<figure><blockquote><p>${esc(t.quote)}</p></blockquote><figcaption>${stop('voices', i, `${t.name}, ${t.company}`)}</figcaption></figure>`,
     ).join('')}`,
 
   process: () => `
     <h2>How we work</h2>
     <p>We listen first. Then we build.</p>
-    <ol>${PROCESS.map(p => `<li><h3>${esc(p.title)}</h3><p>${esc(p.text)}</p></li>`).join('')}</ol>
+    <ol>${PROCESS.map((p, i) => `<li><h3>${stop('process', i, p.title)}</h3><p>${esc(p.text)}</p></li>`).join('')}</ol>
     <ul>${[STATS[0], STATS[2], STATS[1]].map(s => `<li>${esc(s.value)}: ${esc(s.label)}</li>`).join('')}</ul>`,
 
   contact: () => `
@@ -88,7 +93,12 @@ export function buildChapterCopy(id: string, visible = false): HTMLElement | nul
       e.preventDefault()
       if (target === 'hero') hark.goto(0)
       else hark.land(target)
+      hark.engine.focusChapter(target)
     }),
+  )
+  // item stops only steer the story (focus does the work); never follow the hash
+  div.querySelectorAll<HTMLAnchorElement>('a[data-anchor][href^="#"]').forEach(a =>
+    a.addEventListener('click', e => e.preventDefault()),
   )
   div.querySelectorAll<HTMLButtonElement>('[data-copy-email]').forEach(btn =>
     btn.addEventListener('click', async () => {

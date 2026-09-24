@@ -76,6 +76,13 @@ export interface Chapter {
   camera(local: number, frame: Frame, out: CameraPose): void
   onEnter?(ctx: ChapterContext): void
   onLeave?(ctx: ChapterContext): void
+  /**
+   * Local progress of each item in this chapter (a project, a service, a
+   * quote…), in the order of the chapter's items in the accessible copy layer
+   * (src/core/srContent.ts, data-anchor="i"). Keyboard focus on item i lands
+   * the story at anchors[i].
+   */
+  anchors?: number[]
   /** Optional hover/click raycast hooks (pointer in NDC). */
   onPointerDown?(frame: Frame, ctx: ChapterContext): void
 }

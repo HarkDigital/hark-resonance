@@ -350,8 +350,8 @@ export const PROCESS = [
  * borrowed from igloo.inc.
  */
 export const MICROCOPY = {
-  signalEyebrow: 'The signal',
-  scrollHint: 'Scroll to tune in',
+  signalEyebrow: 'Room tone',
+  scrollHint: 'Scroll to drop the needle',
   audio: 'Audio',
   audioOn: 'Live',
   audioOff: 'Muted',

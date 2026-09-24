@@ -107,12 +107,17 @@ export class Engine {
   private dprScale = 1
   private perfEma = 1 / 60
   private cadence: number[] = []
+  private cadenceTick = 0
+  private cadenceSorted = new Float32Array(120)
   private baseline = 1 / 60
   private slowFor = 0
   private fastFor = 0
   private perfCooldown = 0
   /** time-driven cut used for long nav jumps (so we never scrub through five chapters) */
   private jump: { t: number; id: string; local: number; swapped: boolean } | null = null
+  /** true while something (e.g. the rotate gate) covers the scene — skip rendering */
+  paused = false
+  private suppressFocusLand = false
   private tmpRight = new THREE.Vector3()
   private tmpUp = new THREE.Vector3()
 
@@ -221,8 +226,14 @@ export class Engine {
           section.setAttribute('aria-labelledby', heading.id)
         }
       }
-      section.addEventListener('focusin', () => {
-        if (this.slots[this.state.index]?.def.id !== def.id) this.land(def.id)
+      section.addEventListener('focusin', e => {
+        if (this.suppressFocusLand) return
+        // items (a project, a service, a quote…) can drive the timeline directly
+        const a = (e.target as HTMLElement).closest<HTMLElement>('[data-anchor]')
+        const slot = this.slots.find(x => x.def.id === def.id)
+        const anchor = a && slot?.chapter.anchors?.[Number(a.dataset.anchor)]
+        if (anchor != null) this.land(def.id, true, anchor)
+        else if (this.slots[this.state.index]?.def.id !== def.id) this.land(def.id)
       })
       this.track.appendChild(section)
 
@@ -310,23 +321,38 @@ export class Engine {
    * built materials, geometry and textures upload before the reveal.
    */
   private async prewarm() {
+    const target = this.post.composer.renderTarget1
+    // Compile each chapter with ONLY its own group (and lights) visible:
+    // three keys programs on the visible light set, so compiling everything at
+    // once builds variants no chapter ever uses and the real ones link later,
+    // synchronously, on first entry.
+    const compiles: Promise<unknown>[] = []
+    this.renderer.setRenderTarget(target)
     for (const slot of this.slots) {
-      try {
-        slot.chapter.update(0.5, this.frame, slot.ctx)
-      } catch {
-        /* reported below */
+      for (const other of this.slots) other.chapter.group.visible = other === slot
+      for (const l of [0.5, 0.04, 0.92]) {
+        try {
+          slot.chapter.update(l, this.frame, slot.ctx)
+          compiles.push(this.renderer.compileAsync(slot.chapter.group, this.camera, this.scene).catch(() => {}))
+        } catch (err) {
+          console.error(`[hark] chapter "${slot.def.id}" failed during compile`, err)
+        }
       }
-      slot.chapter.group.visible = true
-    }
-    this.renderer.setRenderTarget(this.post.composer.renderTarget1)
-    try {
-      await this.renderer.compileAsync(this.scene, this.camera)
-    } catch {
-      /* best-effort */
     }
     for (const slot of this.slots) slot.chapter.group.visible = false
+    await Promise.all(compiles)
+    await nextFrame()
 
-    const rt = new THREE.WebGLRenderTarget(64, 64, { type: THREE.HalfFloatType })
+    // the composer's own passes
+    this.post.render(0.016, 0)
+    await nextFrame()
+
+    // Render each chapter at a few points so geometry/textures upload and the
+    // GPU builds pipelines for the real attachment format (incl. MSAA).
+    const rt = new THREE.WebGLRenderTarget(64, 64, {
+      type: THREE.HalfFloatType,
+      samples: target.samples,
+    })
     for (const slot of this.slots) {
       try {
         slot.chapter.group.visible = true
@@ -346,8 +372,6 @@ export class Engine {
     }
     this.renderer.setRenderTarget(null)
     rt.dispose()
-    // one full pass through the composer so its passes compile too
-    this.post.render(0.016, 0)
   }
 
   private layoutTrack() {
@@ -398,13 +422,27 @@ export class Engine {
    * smoothly; longer jumps cut (flash out, jump, flash in) instead of scrubbing
    * through every chapter in between.
    */
-  land(id: string, smooth = true) {
+  land(id: string, smooth = true, at?: number) {
     const target = this.slots.findIndex(s => s.def.id === id)
     if (target < 0) return
-    const local = this.landingFor(id)
+    const local = at ?? this.landingFor(id)
     if (!smooth) return this.gotoChapter(id, local)
     if (Math.abs(target - this.state.index) <= 1) return this.gotoChapter(id, local, true)
     this.jump = { t: 0, id, local, swapped: false }
+  }
+
+  /**
+   * Move keyboard focus to a chapter's heading in the copy layer (after an
+   * in-page jump) without re-triggering the focus→land behaviour.
+   */
+  focusChapter(id: string) {
+    const slot = this.slots.find(s => s.def.id === id)
+    const heading = slot?.section.querySelector<HTMLElement>('h1, h2')
+    if (!heading) return
+    heading.tabIndex = -1
+    this.suppressFocusLand = true
+    heading.focus({ preventScroll: true })
+    this.suppressFocusLand = false
   }
 
   /** Jump to global progress 0..1 (no smoothing). */
@@ -430,7 +468,7 @@ export class Engine {
       if (!this.running) return
       this.timer.update(ms)
       this.lenis.raf(ms)
-      this.tick()
+      if (!this.paused) this.tick()
       requestAnimationFrame(loop)
     }
     requestAnimationFrame(loop)
@@ -446,8 +484,10 @@ export class Engine {
     if (document.hidden || this.frame.time < 4 || this.jump) return
     this.cadence.push(raw)
     if (this.cadence.length > 120) this.cadence.shift()
-    if (this.cadence.length >= 60 && this.cadence.length % 20 === 0) {
-      const sorted = [...this.cadence].sort((a, b) => a - b)
+    if (this.cadence.length >= 60 && ++this.cadenceTick % 20 === 0) {
+      const sorted = this.cadenceSorted.subarray(0, this.cadence.length)
+      sorted.set(this.cadence)
+      sorted.sort()
       this.baseline = Math.max(1 / 144, sorted[Math.floor(sorted.length * 0.1)])
     }
     this.perfEma += (raw - this.perfEma) * 0.05
@@ -551,6 +591,7 @@ export class Engine {
       // no ripples or flashes: a quiet dip to paper instead
       this.post.transition = 0
       this.post.fade = cut * 0.85
+      this.post.setFadeTone(this.studio.tone)
     } else {
       this.post.transition = cut
       this.post.fade = 0
